@@ -11,6 +11,10 @@
 		<channels>
 			<channel id="volume" typeId="system.volume"/>
 			<channel id="mute" typeId="system.mute"/>
+			<channel id="lfvolume" typeId="lfvolume"/>
+			<channel id="lfmute" typeId="lfmute"/>
+			<channel id="rfvolume" typeId="rfvolume"/>
+			<channel id="rfmute" typeId="rfmute"/>
 			<channel id="control" typeId="system.media-control"/>
 			<channel id="stop" typeId="stop"/>
 			<channel id="title" typeId="system.media-title"/>
@@ -23,15 +27,27 @@
 			<channel id="tracknumber" typeId="tracknumber"/>
 			<channel id="trackduration" typeId="trackduration"/>
 			<channel id="trackposition" typeId="trackposition"/>
+			<channel id="reltrackposition" typeId="reltrackposition"/>
 		</channels>
+		<representation-property>udn</representation-property>
 		<config-description>
 			<parameter name="udn" type="text" required="true">
 				<label>Unique Device Name</label>
 				<description>The UDN identifies the UPnP Renderer</description>
 			</parameter>
+			<parameter name="refresh" type="integer" unit="s">
+				<label>Refresh Interval</label>
+				<description>Specifies the refresh interval in seconds</description>
+				<default>60</default>
+			</parameter>
+			<parameter name="seekstep" type="integer" min="1" required="false">
+				<label>fast forward/rewind step</label>
+				<description>Step in seconds for fast forward rewind</description>
+				<default>5</default>
+			</parameter>
 		</config-description>
-
 	</thing-type>
+
 	<thing-type id="upnpserver">
 		<label>UPnPServer</label>
 		<description>UPnP AV Server</description>
@@ -41,16 +57,21 @@
 			<channel id="browse" typeId="browse"/>
 			<channel id="search" typeId="search"/>
 		</channels>
+		<representation-property>udn</representation-property>
 		<config-description>
 			<parameter name="udn" type="text" required="true">
 				<label>Unique Device Name</label>
 				<description>The UDN identifies the UPnP Media Server</description>
 			</parameter>
+			<parameter name="refresh" type="integer" unit="s">
+				<label>Refresh Interval</label>
+				<description>Specifies the refresh interval in seconds</description>
+				<default>60</default>
+			</parameter>
 			<parameter name="filter" type="boolean" required="false">
 				<label>Filter Content</label>
 				<description>Only list content which is playable on the selected renderer</description>
 				<default>false</default>
-				<advanced>false</advanced>
 			</parameter>
 			<parameter name="sortcriteria" type="text" required="false">
 				<label>Sort Criteria</label>
@@ -63,6 +84,30 @@
 	</thing-type>
 
 	<!-- Channel Types -->
+	<channel-type id="lfvolume">
+		<item-type>Dimmer</item-type>
+		<label>LF Volume</label>
+		<description>Left Front Volume</description>
+		<category>SoundVolume</category>
+	</channel-type>
+	<channel-type id="lfmute">
+		<item-type>Switch</item-type>
+		<label>LF Mute</label>
+		<description>Left Front Mute</description>
+		<category>SoundVolume</category>
+	</channel-type>
+	<channel-type id="rfvolume">
+		<item-type>Dimmer</item-type>
+		<label>RF Volume</label>
+		<description>Right Front Volume</description>
+		<category>SoundVolume</category>
+	</channel-type>
+	<channel-type id="rfmute">
+		<item-type>Switch</item-type>
+		<label>RF Mute</label>
+		<description>Right Front Mute</description>
+		<category>SoundVolume</category>
+	</channel-type>
 	<channel-type id="stop">
 		<item-type>Switch</item-type>
 		<label>Stop</label>
@@ -115,7 +160,13 @@
 		<item-type>Number:Time</item-type>
 		<label>Track Position</label>
 		<description>Now playing track position</description>
-		<state readOnly="true" pattern="%d %unit%"/>
+		<state pattern="%d %unit%"/>
+	</channel-type>
+	<channel-type id="reltrackposition">
+		<item-type>Dimmer</item-type>
+		<label>Relative Track Position</label>
+		<description>Track position as percentage of track duration</description>
+		<category>MediaControl</category>
 	</channel-type>
 
 	<channel-type id="upnprenderer">

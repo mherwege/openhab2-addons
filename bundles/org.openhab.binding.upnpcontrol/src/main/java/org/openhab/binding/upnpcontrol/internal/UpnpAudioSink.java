@@ -106,7 +106,7 @@ public class UpnpAudioSink implements AudioSink {
     @Override
     public void setVolume(@Nullable PercentType volume) throws IOException {
         if (volume != null) {
-            handler.setVolume(handler.getCurrentChannel(), volume);
+            handler.setVolume(volume);
         }
     }
 

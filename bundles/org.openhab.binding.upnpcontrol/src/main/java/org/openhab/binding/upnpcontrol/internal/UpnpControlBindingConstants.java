@@ -45,6 +45,10 @@ public class UpnpControlBindingConstants {
     // List of all Channel ids
     public static final String VOLUME = "volume";
     public static final String MUTE = "mute";
+    public static final String LEFT_VOLUME = "lfvolume";
+    public static final String LEFT_MUTE = "lfmute";
+    public static final String RIGHT_VOLUME = "rfvolume";
+    public static final String RIGHT_MUTE = "rfmute";
     public static final String CONTROL = "control";
     public static final String STOP = "stop";
     public static final String TITLE = "title";
@@ -57,6 +61,7 @@ public class UpnpControlBindingConstants {
     public static final String TRACK_NUMBER = "tracknumber";
     public static final String TRACK_DURATION = "trackduration";
     public static final String TRACK_POSITION = "trackposition";
+    public static final String REL_TRACK_POSITION = "reltrackposition";
 
     public static final String UPNPRENDERER = "upnprenderer";
     public static final String CURRENTID = "currentid";
@@ -67,4 +72,5 @@ public class UpnpControlBindingConstants {
     // Thing config properties
     public static final String CONFIG_FILTER = "filter";
     public static final String SORT_CRITERIA = "sortcriteria";
+    public static final String SEEK_STEP = "seekstep";
 }

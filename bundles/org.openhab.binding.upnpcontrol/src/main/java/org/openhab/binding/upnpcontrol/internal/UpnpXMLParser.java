@@ -21,10 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
-
 import org.apache.commons.lang.StringEscapeUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -33,7 +29,9 @@ import org.slf4j.LoggerFactory;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
+import org.xml.sax.helpers.XMLReaderFactory;
 
 /**
  *
@@ -69,6 +67,25 @@ public class UpnpXMLParser {
         RES
     }
 
+    public static Map<String, @Nullable String> getRenderingControlFromXML(String xml) {
+        if (xml.isEmpty()) {
+            LOGGER.debug("Could not parse Rendering Control from empty xml");
+            return Collections.emptyMap();
+        }
+        RenderingControlEventHandler handler = new RenderingControlEventHandler();
+        try {
+            XMLReader reader = XMLReaderFactory.createXMLReader();
+            reader.setContentHandler(handler);
+            reader.parse(new InputSource(new StringReader(xml)));
+        } catch (IOException e) {
+            // This should never happen - we're not performing I/O!
+            LOGGER.error("Could not parse Rendering Control from string '{}'", xml);
+        } catch (SAXException s) {
+            LOGGER.error("Could not parse Rendering Control from string '{}'", xml);
+        }
+        return handler.getChanges();
+    }
+
     public static Map<String, String> getAVTransportFromXML(String xml) {
         if (xml.isEmpty()) {
             LOGGER.debug("Could not parse AV Transport from empty xml");
@@ -76,13 +93,13 @@ public class UpnpXMLParser {
         }
         AVTransportEventHandler handler = new AVTransportEventHandler();
         try {
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            SAXParser saxParser = factory.newSAXParser();
-            saxParser.parse(new InputSource(new StringReader(xml)), handler);
+            XMLReader reader = XMLReaderFactory.createXMLReader();
+            reader.setContentHandler(handler);
+            reader.parse(new InputSource(new StringReader(xml)));
         } catch (IOException e) {
             // This should never happen - we're not performing I/O!
             LOGGER.error("Could not parse AV Transport from string '{}'", xml, e);
-        } catch (SAXException | ParserConfigurationException s) {
+        } catch (SAXException s) {
             LOGGER.debug("Could not parse AV Transport from string '{}'", xml, s);
         }
         return handler.getChanges();
@@ -101,16 +118,49 @@ public class UpnpXMLParser {
         }
         EntryHandler handler = new EntryHandler();
         try {
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            SAXParser saxParser = factory.newSAXParser();
-            saxParser.parse(new InputSource(new StringReader(xml)), handler);
+            XMLReader reader = XMLReaderFactory.createXMLReader();
+            reader.setContentHandler(handler);
+            reader.parse(new InputSource(new StringReader(xml)));
         } catch (IOException e) {
             // This should never happen - we're not performing I/O!
             LOGGER.error("Could not parse Entries from string '{}'", xml, e);
-        } catch (SAXException | ParserConfigurationException s) {
+        } catch (SAXException s) {
             LOGGER.debug("Could not parse Entries from string '{}'", xml, s);
         }
         return handler.getEntries();
+    }
+
+    private static class RenderingControlEventHandler extends DefaultHandler {
+
+        private final Map<String, @Nullable String> changes = new HashMap<>();
+
+        @Override
+        public void startElement(@Nullable String uri, @Nullable String localName, @Nullable String qName,
+                @Nullable Attributes attributes) throws SAXException {
+            if (qName == null) {
+                return;
+            }
+            switch (qName) {
+                case "Volume":
+                case "Mute":
+                case "Loudness":
+                    String channel = attributes == null ? null : attributes.getValue("channel");
+                    String val = attributes == null ? null : attributes.getValue("val");
+                    if (channel != null && val != null) {
+                        changes.put(qName + channel, val);
+                    }
+                    break;
+                default:
+                    if ((attributes != null) && (attributes.getValue("val") != null)) {
+                        changes.put(qName, attributes.getValue("val"));
+                    }
+                    break;
+            }
+        }
+
+        public Map<String, @Nullable String> getChanges() {
+            return changes;
+        }
     }
 
     private static class AVTransportEventHandler extends DefaultHandler {
@@ -123,13 +173,13 @@ public class UpnpXMLParser {
 
         @Override
         public void startElement(@Nullable String uri, @Nullable String localName, @Nullable String qName,
-                @Nullable Attributes atts) throws SAXException {
+                @Nullable Attributes attributes) throws SAXException {
             /*
              * The events are all of the form <qName val="value"/> so we can get all
              * the info we need from here.
              */
-            if ((qName != null) && (atts != null) && (atts.getValue("val") != null)) {
-                changes.put(qName, atts.getValue("val"));
+            if ((qName != null) && (attributes != null) && (attributes.getValue("val") != null)) {
+                changes.put(qName, attributes.getValue("val"));
             }
         }
 

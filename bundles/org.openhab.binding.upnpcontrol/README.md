@@ -33,6 +33,10 @@ Both the  `upnprenderer` and `upnpserver` thing require a configuration paramete
 This `udn` uniquely defines the UPnP device.
 It can be retrieved from the thing ID when using auto discovery.
 
+Both also have `refresh` configuration parameter. This parameter defines a polling interval for polling the state of the `upnprenderer` or `upnpserver`.
+The default polling interval is 60s.
+O turns off polling.
+
 Additionally, a `upnpserver` device has the following optional configuration parameters:
 
 * `filter`: when true, only list content that is playable on the renderer, default is `false`.
@@ -40,6 +44,10 @@ Additionally, a `upnpserver` device has the following optional configuration par
 The criteria are defined in UPnP sort criteria format, examples: `+dc:title`, `-dc:creator`, `+upnp:album`.
 Support for sort criteria will depend on the media server.
 The default is to sort ascending on title, `+dc:title`.
+
+A `upnprenderer` has the following optional configuration parameter:
+
+* `seekstep`: step in seconds when sending fast forward or rewind command on the player control, default 5s.
 
 The full syntax for manual configuration is:
 
@@ -71,21 +79,27 @@ All media in the search result list, playable on the current selected `upnprende
 
 The `upnprenderer` has the following channels:
 
-| Channel Type ID | Item Type | Access Mode | Description                                        |
-|-----------------|-----------|-------------|----------------------------------------------------|
-| `volume`        | Dimmer    |      RW     | playback volume                                    |
-| `control`       | Player    |      RW     | play, pause, next, previous control                |
-| `stop`          | Switch    |      RW     | stop media playback                                |
-| `title`         | String    |      R      | media title                                        |
-| `album`         | String    |      R      | media album                                        |
-| `albumart`      | Image     |      R      | image for media album                              |
-| `creator`       | String    |      R      | media creator                                      |
-| `artist`        | String    |      R      | media artist                                       |
-| `publisher`     | String    |      R      | media publisher                                    |
-| `genre`         | String    |      R      | media genre                                        |
-| `tracknumber`   | Number    |      R      | track number of current track in album             |
-| `trackduration` | Number:Time    |      R      | track duration of current track in album           |
-| `trackposition` | Number:Time    |      R      | current position in track during playback or pause |
+| Channel Type ID    | Item Type   | Access Mode | Description                                        |
+|--------------------|-------------|-------------|----------------------------------------------------|
+| `volume`           | Dimmer      | RW          | playback master volume                             |
+| `mute`             | Switch      | RW          | playback master mute                               |
+| `lfvolume`         | Dimmer      | RW          | playback front left volume                         |
+| `lfmute`           | Switch      | RW          | playback front left mute                           |
+| `rfvolume`         | Dimmer      | RW          | playback front right volume                        |
+| `rfmute`           | Switch      | RW          | playback front right mute                          |
+| `control`          | Player      | RW          | play, pause, next, previous, fast forward, rewind  |
+| `stop`             | Switch      | RW          | stop media playback                                |
+| `title`            | String      | R           | media title                                        |
+| `album`            | String      | R           | media album                                        |
+| `albumart`         | Image       | R           | image for media album                              |
+| `creator`          | String      | R           | media creator                                      |
+| `artist`           | String      | R           | media artist                                       |
+| `publisher`        | String      | R           | media publisher                                    |
+| `genre`            | String      | R           | media genre                                        |
+| `tracknumber`      | Number      | R           | track number of current track in album             |
+| `trackduration`    | Number:Time | R           | track duration of current track in album           |
+| `trackposition`    | Number:Time | RW          | current position in track during playback or pause |
+| `reltrackposition` | Dimmer      | RW          | current position relative to track duration        |
 
 ## Audio Support
 
@@ -96,16 +110,20 @@ All configured media renderers are registered as an audio sink.
 
 The current version of BasicUI does not support dynamic refreshing of the selection list in the `upnpserver` channels `renderer` and `browse`.
 A refresh of the browser will be required to show the adjusted selection list.
+
 The `upnpserver search` channel requires input of a string to trigger a search.
 This cannot be done with BasicUI, but can be achieved with rules.
+
+The player control in BasicUI does not support fast forward or rewind.
+This can be done through rules.
 
 ## Full Example
 
 .things:
 
 ```
-Thing upnpcontrol:upnpserver:mymediaserver [udn="538cf6e8-d188-4aed-8545-73a1b905466e"]
-Thing upnpcontrol:upnprenderer:mymediarenderer [udn="0ec457ae-6c50-4e6e-9012-dee7bb25be2d", filter=true, sortcriteria="+dc:title"]
+Thing upnpcontrol:upnpserver:mymediaserver [udn="0ec457ae-6c50-4e6e-9012-dee7bb25be2d", refresh=120, filter=true, sortcriteria="+dc:title"]
+Thing upnpcontrol:upnprenderer:mymediarenderer [udn="538cf6e8-d188-4aed-8545-73a1b905466e", refresh=600, seekstep=1]
 ```
 
 .items:
@@ -116,6 +134,10 @@ Group MediaRenderer <player>
 
 Dimmer Volume    "Volume [%.1f %%]" <soundvolume>      (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:volume"}
 Switch Mute      "Mute"             <soundvolume_mute> (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:mute"}
+Dimmer LeftVolume "Volume [%.1f %%]" <soundvolume>     (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:lfvolume"}
+Switch LeftMute  "Mute"             <soundvolume_mute> (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:lfmute"}
+Dimmer RightVolume "Volume [%.1f %%]" <soundvolume>    (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:rfvolume"}
+Switch RightMute "Mute"             <soundvolume_mute> (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:rfmute"}
 Player Controls  "Controller"                          (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:control"}
 Switch Stop      "Stop"                                (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:stop"}
 String Title     "Now playing [%s]" <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:title"}
@@ -128,10 +150,12 @@ String Genre     "Genre"            <text>             (MediaRenderer) {channel=
 Number TrackNumber "Track Number"                      (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:tracknumber"}
 Number:Time TrackDuration "Track Duration [%d %unit%]" (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:trackduration"}
 Number:Time TrackPosition "Track Position [%d %unit%]" (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:trackposition"}
+Dimmer RelTrackPosition "Relative Track Position ´[%d %%]" (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:reltrackposition"}
 
 String Renderer  "Renderer [%s]"    <text>             (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:title"}
 String CurrentId "Current Entry [%s]" <text>           (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:currentid"}
 String Browse   "Browse"                               (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:browse"}
+String Search   "Search"                               (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:search"}
 ```
 
 .sitemap:
@@ -139,6 +163,10 @@ String Browse   "Browse"                               (MediaServer)   {channel=
 ```
 Slider  item=Volume
 Switch  item=Mute
+Slider  item=LeftVolume
+Switch  item=LeftMute
+Slider  item=RightVolume
+Switch  item=RightMute
 Default item=Controls
 Switch  item=Stop mappings=[ON="STOP"]
 Text    item=Title     
@@ -151,10 +179,12 @@ Text    item=Genre
 Text    item=TrackNumber
 Text    item=TrackDuration
 Text    item=TrackPosition
+Slider  item=RelTrackPosition
 
 Text    item=Renderer
 Text    item=CurrentId
 Text    item=Browse
+Text    item=Search
 ```
 
 Audio sink usage examples in rules:

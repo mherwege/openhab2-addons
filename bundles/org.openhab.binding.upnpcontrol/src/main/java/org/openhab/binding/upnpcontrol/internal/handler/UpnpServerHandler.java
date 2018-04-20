@@ -54,7 +54,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The {@link UpnpServerHandler} is responsible for handling commands sent to the UPnP Server.
+ * The {@link UpnpServerHandler} is responsible for handling commands sent to the UPnP Server. It implements UPnP
+ * ContentDirectory service actions.
  *
  * @author Mark Herwege - Initial contribution
  * @author Karel Goderis - Based on UPnP logic in Sonos binding
@@ -122,34 +123,30 @@ public class UpnpServerHandler extends UpnpHandler {
                     "Channel " + BROWSE + " not defined");
             return;
         }
-        if (config.udn != null) {
-            if (service.isRegistered(this)) {
-                initServer();
-            } else {
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                        "Communication cannot be established with " + thing.getLabel());
-            }
-        } else {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
-                    "No UDN configured for " + thing.getLabel());
-        }
+
+        initDevice();
     }
 
-    private void initServer() {
-        rendererStateOptionList = Collections.synchronizedList(new ArrayList<>());
-        synchronized (rendererStateOptionList) {
-            upnpRenderers.forEach((key, value) -> {
-                StateOption stateOption = new StateOption(key, value.getThing().getLabel());
-                rendererStateOptionList.add(stateOption);
-            });
+    @Override
+    protected void initJob() {
+        synchronized (jobLock) {
+            if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
+                rendererStateOptionList = Collections.synchronizedList(new ArrayList<>());
+                synchronized (rendererStateOptionList) {
+                    upnpRenderers.forEach((key, value) -> {
+                        StateOption stateOption = new StateOption(key, value.getThing().getLabel());
+                        rendererStateOptionList.add(stateOption);
+                    });
+                }
+                updateStateDescription(rendererChannelUID, rendererStateOptionList);
+
+                getProtocolInfo();
+
+                browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+
+                updateStatus(ThingStatus.ONLINE);
+            }
         }
-        updateStateDescription(rendererChannelUID, rendererStateOptionList);
-
-        getProtocolInfo();
-
-        browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
-
-        updateStatus(ThingStatus.ONLINE);
     }
 
     @Override
@@ -404,7 +401,7 @@ public class UpnpServerHandler extends UpnpHandler {
     public void onStatusChanged(boolean status) {
         logger.debug("Server status changed to {}", status);
         if (status) {
-            initServer();
+            initJob();
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                     "Communication lost with " + thing.getLabel());
