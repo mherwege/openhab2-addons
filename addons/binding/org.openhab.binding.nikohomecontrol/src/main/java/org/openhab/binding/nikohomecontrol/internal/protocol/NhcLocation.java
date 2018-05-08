@@ -8,12 +8,15 @@
  */
 package org.openhab.binding.nikohomecontrol.internal.protocol;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
+
 /**
  * The {@link NhcLocation} class represents the location Niko Home Control communication object. It contains all fields
  * representing a Niko Home Control location.
  *
  * @author Mark Herwege - Initial Contribution
  */
+@NonNullByDefault
 final class NhcLocation {
 
     private String name;

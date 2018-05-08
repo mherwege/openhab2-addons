@@ -19,27 +19,27 @@ import org.slf4j.LoggerFactory;
 /**
  * The {@link NhcThermostat} class represents the thermostat Niko Home Control communication object. It contains all
  * fields representing a Niko Home Control thermostat and has methods to set the thermostat in Niko Home Control and
- * receive thermostat updates.
+ * receive thermostat updates. Specific implementation are {@link NhcIThermostat} and {@link NhcIIThermostat}.
  *
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public final class NhcThermostat {
+public abstract class NhcThermostat {
 
     private final Logger logger = LoggerFactory.getLogger(NhcThermostat.class);
 
     @Nullable
-    private NikoHomeControlCommunication nhcComm;
+    protected NikoHomeControlCommunication nhcComm;
 
-    private int id;
-    private String name;
-    private String location;
-    private Integer measured = 0;
-    private Integer setpoint = 0;
-    private Integer mode = 0;
-    private Integer overrule = 0;
-    private Integer overruletime = 0;
-    private Integer ecosave = 0;
+    protected String id;
+    protected String name;
+    protected @Nullable String location;
+    protected int measured = 0;
+    protected int setpoint = 0;
+    protected int mode = 0;
+    protected int overrule = 0;
+    protected int overruletime = 0;
+    protected int ecosave = 0;
 
     @Nullable
     private LocalDateTime overruleStart;
@@ -47,7 +47,7 @@ public final class NhcThermostat {
     @Nullable
     private NhcThermostatEvent eventHandler;
 
-    NhcThermostat(int id, String name, String location) {
+    NhcThermostat(String id, String name, @Nullable String location) {
         this.id = id;
         this.name = name;
         this.location = location;
@@ -103,9 +103,18 @@ public final class NhcThermostat {
     }
 
     /**
-     * Get name of action.
+     * Get the id of the thermostat.
      *
-     * @return action name
+     * @return the id
+     */
+    public String getId() {
+        return this.id;
+    }
+
+    /**
+     * Get name of thermostat.
+     *
+     * @return thermostat name
      */
     public String getName() {
         return this.name;
@@ -116,7 +125,7 @@ public final class NhcThermostat {
      *
      * @return location name
      */
-    public String getLocation() {
+    public @Nullable String getLocation() {
         return this.location;
     }
 
@@ -208,40 +217,21 @@ public final class NhcThermostat {
     }
 
     /**
-     * Sends thermostat mode to Niko Home Control.
+     * Sends thermostat mode to Niko Home Control. This method is implemented in {@link NhcIThermostat} and
+     * {@link NhcIIThermostat}.
      *
      * @param mode
      */
-    public void executeMode(int mode) {
-        logger.debug("Niko Home Control: execute thermostat mode {} for {}", mode, this.id);
-
-        NhcMessageCmd nhcCmd = new NhcMessageCmd("executethermostat", this.id).withMode(mode);
-
-        NikoHomeControlCommunication comm = nhcComm;
-        if (comm != null) {
-            comm.sendMessage(nhcCmd);
-        }
-    }
+    public abstract void executeMode(int mode);
 
     /**
-     * Sends thermostat setpoint to Niko Home Control.
+     * Sends thermostat setpoint to Niko Home Control. This method is implemented in {@link NhcIThermostat} and
+     * {@link NhcIIThermostat}.
      *
      * @param overrule temperature to overrule the setpoint in 0.1°C multiples
      * @param time     time duration in min for overrule
      */
-    public void executeOverrule(int overrule, int overruletime) {
-        logger.debug("Niko Home Control: execute thermostat overrule {} during {} min for {}", overrule, overruletime,
-                this.id);
-
-        String overruletimeString = String.format("%1$02d:%2$02d", overruletime / 60, overruletime % 60);
-        NhcMessageCmd nhcCmd = new NhcMessageCmd("executethermostat", this.id).withOverrule(overrule)
-                .withOverruletime(overruletimeString);
-
-        NikoHomeControlCommunication comm = nhcComm;
-        if (comm != null) {
-            comm.sendMessage(nhcCmd);
-        }
-    }
+    public abstract void executeOverrule(int overrule, int overruletime);
 
     /**
      * @return remaining overrule time in minutes

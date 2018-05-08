@@ -19,13 +19,23 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 @NonNullByDefault
 public class NhcConstants {
 
-    // dimmer constants
-    public static final int NHCON = 254;
-    public static final int NHCOFF = 255;
+    // Action types abstracted from NhcI and NhcII action types
+    public static enum ActionType {
+        RELAY,
+        DIMMER,
+        ROLLERSHUTTER,
+        GENERIC
+    };
 
-    // rollershutter constants
-    public static final int NHCDOWN = 254;
-    public static final int NHCUP = 255;
-    public static final int NHCSTOP = 253;
+    // switch and dimmer constants in the Nhc layer
+    public static final String NHCON = "On";
+    public static final String NHCOFF = "Off";
+
+    public static final String NHCTRIGGERED = "Triggered";
+
+    // rollershutter constants in the Nhc layer
+    public static final String NHCDOWN = "Down";
+    public static final String NHCUP = "Up";
+    public static final String NHCSTOP = "Stop";
 
 }

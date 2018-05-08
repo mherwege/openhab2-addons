@@ -34,6 +34,7 @@ import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NhcAction;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NhcActionEvent;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NhcConstants.ActionType;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlCommunication;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -164,9 +165,9 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
         if (command instanceof OnOffType) {
             OnOffType s = (OnOffType) command;
             if (s == OnOffType.OFF) {
-                nhcAction.execute(0);
+                nhcAction.execute(NHCOFF);
             } else {
-                nhcAction.execute(100);
+                nhcAction.execute(NHCON);
             }
         }
     }
@@ -188,19 +189,19 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
                 newValue = currentValue + stepValue;
                 // round down to step multiple
                 newValue = newValue - newValue % stepValue;
-                nhcAction.execute(newValue > 100 ? 100 : newValue);
+                nhcAction.execute(Integer.toString(newValue > 100 ? 100 : newValue));
             } else {
                 newValue = currentValue - stepValue;
                 // round up to step multiple
                 newValue = newValue + newValue % stepValue;
-                nhcAction.execute(newValue < 0 ? 0 : newValue);
+                nhcAction.execute(Integer.toString(newValue < 0 ? 0 : newValue));
             }
         } else if (command instanceof PercentType) {
             PercentType p = (PercentType) command;
             if (p == PercentType.ZERO) {
                 nhcAction.execute(NHCOFF);
             } else {
-                nhcAction.execute(p.intValue());
+                nhcAction.execute(Integer.toString(p.intValue()));
             }
         }
     }
@@ -415,7 +416,7 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
         }
 
         int actionState = nhcAction.getState();
-        int actionType = nhcAction.getType();
+        ActionType actionType = nhcAction.getType();
         String actionLocation = nhcAction.getLocation();
 
         this.prevActionState = actionState;
@@ -447,7 +448,7 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
         Configuration config = this.getConfig();
         Integer actionId = ((Number) config.get(CONFIG_ACTION_ID)).intValue();
 
-        int actionType = nhcAction.getType();
+        ActionType actionType = nhcAction.getType();
 
         if (this.filterEvent) {
             this.filterEvent = false;
@@ -457,17 +458,16 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
         }
 
         switch (actionType) {
-            case 0:
-            case 1:
+            case RELAY:
+            case GENERIC:
                 updateState(CHANNEL_SWITCH, (actionState == 0) ? OnOffType.OFF : OnOffType.ON);
                 updateStatus(ThingStatus.ONLINE);
                 break;
-            case 2:
+            case DIMMER:
                 updateState(CHANNEL_BRIGHTNESS, new PercentType(actionState));
                 updateStatus(ThingStatus.ONLINE);
                 break;
-            case 4:
-            case 5:
+            case ROLLERSHUTTER:
                 cancelRollershutterStop();
 
                 int state = 100 - actionState;

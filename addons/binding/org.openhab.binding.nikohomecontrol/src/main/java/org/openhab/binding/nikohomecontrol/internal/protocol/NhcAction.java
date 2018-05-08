@@ -10,45 +10,41 @@ package org.openhab.binding.nikohomecontrol.internal.protocol;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NhcConstants.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * The {@link NhcAction} class represents the action Niko Home Control communication object. It contains all fields
  * representing a Niko Home Control action and has methods to trigger the action in Niko Home Control and receive action
- * updates.
+ * updates. Specific implementation are {@link NhcIAction} and {@link NhcIIAction}.
  *
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public final class NhcAction {
+public abstract class NhcAction {
 
     private final Logger logger = LoggerFactory.getLogger(NhcAction.class);
 
     @Nullable
-    private NikoHomeControlCommunication nhcComm;
+    protected NikoHomeControlCommunication nhcComm;
 
-    private int id;
-    private String name;
-    private Integer type;
-    private String location;
-    private Integer state = 0;
-    @Nullable
-    private Integer closeTime;
-    @Nullable
-    private Integer openTime;
+    protected String id;
+    protected String name;
+    protected ActionType type;
+    protected @Nullable String location;
+    protected int state;
+    protected int closeTime = 0;
+    protected int openTime = 0;
 
     @Nullable
     private NhcActionEvent eventHandler;
 
-    NhcAction(int id, String name, Integer type, String location, @Nullable Integer closeTime,
-            @Nullable Integer openTime) {
+    NhcAction(String id, String name, ActionType type, @Nullable String location) {
         this.id = id;
         this.name = name;
         this.type = type;
         this.location = location;
-        this.closeTime = closeTime;
-        this.openTime = openTime;
     }
 
     /**
@@ -78,8 +74,8 @@ public final class NhcAction {
      *
      * @return the id
      */
-    public int getId() {
-        return id;
+    public String getId() {
+        return this.id;
     }
 
     /**
@@ -94,11 +90,11 @@ public final class NhcAction {
     /**
      * Get type of action identified.
      * <p>
-     * Action type is 0 or 1 for a switch, 2 for a dimmer, 3 or 4 for a rollershutter.
+     * ActionType can be RELAY (for simple light or socket switch), DIMMER, ROLLERSHUTTER or GENERIC.
      *
-     * @return action type
+     * @return {@link ActionType}
      */
-    public Integer getType() {
+    public ActionType getType() {
         return this.type;
     }
 
@@ -107,7 +103,7 @@ public final class NhcAction {
      *
      * @return location name
      */
-    public String getLocation() {
+    public @Nullable String getLocation() {
         return this.location;
     }
 
@@ -120,7 +116,7 @@ public final class NhcAction {
      *
      * @return action state
      */
-    public Integer getState() {
+    public int getState() {
         return this.state;
     }
 
@@ -131,7 +127,7 @@ public final class NhcAction {
      *
      * @return action openTime
      */
-    public @Nullable Integer getOpenTime() {
+    public int getOpenTime() {
         return this.openTime;
     }
 
@@ -142,23 +138,11 @@ public final class NhcAction {
      *
      * @return action closeTime
      */
-    public @Nullable Integer getCloseTime() {
+    public int getCloseTime() {
         return this.closeTime;
     }
 
-    /**
-     * Sets state of action.
-     * <p>
-     * State is a value between 0 and 100 for a dimmer or rollershutter.
-     * Rollershutter state is 0 for fully closed and 100 for fully open.
-     * State is 0 or 100 for a switch.
-     * If a thing handler is registered for the action, send a state update through the handler.
-     * This method should only be called from inside this package.
-     *
-     * @param state
-     */
-    void setState(int state) {
-        this.state = state;
+    protected void updateState() {
         NhcActionEvent eventHandler = this.eventHandler;
         if (eventHandler != null) {
             logger.debug("Niko Home Control: update channel state for {} with {}", id, state);
@@ -167,21 +151,25 @@ public final class NhcAction {
     }
 
     /**
-     * Sends action to Niko Home Control.
+     * Sets state of action.
      *
-     * @param percent - The allowed values depend on the action type.
-     *                switch action: 0 or 100
-     *                dimmer action: between 0 and 100, 254 for on, 255 for off
-     *                rollershutter action: 254 to close, 255 to open, 253 to stop
+     * @param state - The allowed values depend on the action type.
+     *                  switch action: 0 or 100
+     *                  dimmer action: between 0 and 100
+     *                  rollershutter action: between 0 and 100
      */
-    public void execute(int percent) {
-        logger.debug("Niko Home Control: execute action {} of type {} for {}", percent, this.type, this.id);
-
-        NhcMessageCmd nhcCmd = new NhcMessageCmd("executeactions", this.id, percent);
-
-        NikoHomeControlCommunication comm = nhcComm;
-        if (comm != null) {
-            comm.sendMessage(nhcCmd);
-        }
+    void setState(int state) {
+        this.state = state;
+        updateState();
     }
+
+    /**
+     * Sends action to Niko Home Control. This method is implemented in {@link NhcIAction} and {@link NhcIIAction}.
+     *
+     * @param command - The allowed values depend on the action type.
+     *                    switch action: On or Off
+     *                    dimmer action: between 0 and 100, On or Off
+     *                    rollershutter action: between 0 and 100, Up, Down or Stop
+     */
+    public abstract void execute(String command);
 }

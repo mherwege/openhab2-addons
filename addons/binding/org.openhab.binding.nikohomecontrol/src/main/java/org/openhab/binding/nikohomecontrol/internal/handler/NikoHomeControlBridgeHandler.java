@@ -11,8 +11,6 @@ package org.openhab.binding.nikohomecontrol.internal.handler;
 import static org.openhab.binding.nikohomecontrol.internal.NikoHomeControlBindingConstants.*;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ScheduledFuture;
@@ -34,24 +32,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * {@link NikoHomeControlBridgeHandler} is the handler for a Niko Home Control IP-interface and connects it to
- * the framework.
+ * {@link NikoHomeControlBridgeHandler} is an abstract class representing a handler to all different interfaces to the
+ * Niko Home
+ * Control System. {@link NhcIBridgeHandler} or {@link NhcIIBridgeHandler} should be used for
+ * the respective version of Niko Home Control.
  *
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public class NikoHomeControlBridgeHandler extends BaseBridgeHandler implements NhcController {
+public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler implements NhcController {
 
     private final Logger logger = LoggerFactory.getLogger(NikoHomeControlBridgeHandler.class);
 
     @Nullable
-    private volatile NikoHomeControlCommunication nhcComm;
+    protected volatile NikoHomeControlCommunication nhcComm;
 
     @Nullable
     private ScheduledFuture<?> refreshTimer;
 
     @Nullable
-    private NikoHomeControlDiscoveryService nhcDiscovery;
+    protected NikoHomeControlDiscoveryService nhcDiscovery;
 
     public NikoHomeControlBridgeHandler(Bridge nikoHomeControlBridge) {
         super(nikoHomeControlBridge);
@@ -62,36 +62,14 @@ public class NikoHomeControlBridgeHandler extends BaseBridgeHandler implements N
         // There is nothing to handle in the bridge handler
     }
 
-    @Override
-    public void initialize() {
-        logger.debug("Niko Home Control: initializing bridge handler");
-
-        Configuration config = this.getConfig();
-        InetAddress addr = getAddr();
-        Integer port = getPort();
-
-        logger.debug("Niko Home Control: bridge handler host {}, port {}", addr, port);
-
-        if ((addr != null) && (port != null)) {
-            createCommunicationObject(addr, port);
-        } else {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR,
-                    "Niko Home Control: cannot resolve bridge IP with hostname " + config.get(CONFIG_HOST_NAME));
-        }
-    }
-
     /**
      * Create communication object to Niko Home Control IP-interface and start communication.
      * Trigger discovery when communication setup is successful.
-     *
-     * @param addr IP address of Niko Home Control IP-interface
-     * @param port
      */
-    private void createCommunicationObject(InetAddress addr, int port) {
+    protected void startCommunication(NikoHomeControlCommunication comm) {
         Configuration config = this.getConfig();
 
         scheduler.submit(() -> {
-            NikoHomeControlCommunication comm = new NikoHomeControlCommunication();
             this.nhcComm = comm;
 
             // Set callback from NikoHomeControlCommunication object to this bridge to be able to take bridge
@@ -189,26 +167,7 @@ public class NikoHomeControlBridgeHandler extends BaseBridgeHandler implements N
      * Update bridge properties with properties returned from Niko Home Control Controller, so they can be made visible
      * in PaperUI.
      */
-    private void updateProperties() {
-        Map<String, String> properties = new HashMap<>();
-
-        NikoHomeControlCommunication comm = nhcComm;
-
-        if (comm != null) {
-            properties.put("softwareVersion", comm.getSystemInfo().getSwVersion());
-            properties.put("apiVersion", comm.getSystemInfo().getApi());
-            properties.put("language", comm.getSystemInfo().getLanguage());
-            properties.put("currency", comm.getSystemInfo().getCurrency());
-            properties.put("units", comm.getSystemInfo().getUnits());
-            properties.put("tzOffset", comm.getSystemInfo().getTz());
-            properties.put("dstOffset", comm.getSystemInfo().getDst());
-            properties.put("configDate", comm.getSystemInfo().getLastConfig());
-            properties.put("energyEraseDate", comm.getSystemInfo().getLastEnergyErase());
-            properties.put("connectionStartDate", comm.getSystemInfo().getTime());
-
-            thing.setProperties(properties);
-        }
-    }
+    abstract protected void updateProperties();
 
     @Override
     public void dispose() {
@@ -290,31 +249,13 @@ public class NikoHomeControlBridgeHandler extends BaseBridgeHandler implements N
         return this.nhcComm;
     }
 
-    /**
-     * Get the IP-address of the Niko Home Control IP-interface.
-     *
-     * @return the addr
-     */
     @Override
     public @Nullable InetAddress getAddr() {
-        Configuration config = this.getConfig();
-        InetAddress addr = null;
-        try {
-            addr = InetAddress.getByName((String) config.get(CONFIG_HOST_NAME));
-        } catch (UnknownHostException e) {
-            logger.debug("Niko Home Control: Cannot resolve hostname {} to IP adress", config.get(CONFIG_HOST_NAME));
-        }
-        return addr;
+        return null;
     }
 
-    /**
-     * Get the listening port of the Niko Home Control IP-interface.
-     *
-     * @return the port
-     */
     @Override
     public @Nullable Integer getPort() {
-        Configuration config = this.getConfig();
-        return ((Number) config.get(CONFIG_PORT)).intValue();
+        return null;
     }
 }
