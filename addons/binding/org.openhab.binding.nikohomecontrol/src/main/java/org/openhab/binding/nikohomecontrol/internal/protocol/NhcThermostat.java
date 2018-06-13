@@ -13,7 +13,6 @@ import java.time.temporal.ChronoUnit;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlThermostatHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +45,7 @@ public final class NhcThermostat {
     private LocalDateTime overruleStart;
 
     @Nullable
-    private NikoHomeControlThermostatHandler thingHandler;
+    private NhcThermostatEvent eventHandler;
 
     NhcThermostat(int id, String name, String location) {
         this.id = id;
@@ -74,22 +73,22 @@ public final class NhcThermostat {
         setOverruletime(overruletime);
         setEcosave(ecosave);
 
-        NikoHomeControlThermostatHandler handler = thingHandler;
+        NhcThermostatEvent handler = eventHandler;
         if (handler != null) {
             logger.debug("Niko Home Control: update channels for {}", id);
-            handler.handleStateUpdate(this);
+            handler.thermostatEvent(measured, setpoint, mode, overrule);
         }
     }
 
     /**
-     * This method should be called if the ThingHandler for the thing corresponding to this action is initialized.
-     * It keeps a record of the thing handler in this object so the thing can be updated when
-     * the action receives an update from the Niko Home Control IP-interface.
+     * This method should be called when an object implementing the {@NhcThermostatEvent} interface is initialized.
+     * It keeps a record of the event handler in that object so it can be updated when the action receives an update
+     * from the Niko Home Control IP-interface.
      *
-     * @param handler
+     * @param eventHandler
      */
-    public void setThingHandler(NikoHomeControlThermostatHandler handler) {
-        this.thingHandler = handler;
+    public void setEventHandler(NhcThermostatEvent handler) {
+        this.eventHandler = handler;
     }
 
     /**

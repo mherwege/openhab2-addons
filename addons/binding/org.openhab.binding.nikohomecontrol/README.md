@@ -50,7 +50,11 @@ Locations can subsequently be changed through the thing location parameter in Pa
 
 Besides using PaperUI to manually configure things or adding automatically discovered things through PaperUI, you can add thing definitions in the things file.
 
+<<<<<<< Upstream, based on origin/master
 The Thing configuration for the **bridge** uses the following syntax:
+=======
+The thing configuration for the **bridge** uses the following syntax:
+>>>>>>> a2f7ff3 Refactor interfaces.
 
 ```
 Bridge nikohomecontrol:bridge:<bridgeId> [ addr="<IP-address of IP-interface>", port=<listening port>,
@@ -63,7 +67,11 @@ Bridge nikohomecontrol:bridge:<bridgeId> [ addr="<IP-address of IP-interface>", 
 `port` will be the port used to connect and is 8000 by default.
 `refresh` is the interval to restart the communication in minutes (300 by default), if 0 or omitted the connection will not restart at regular intervals.
 
+<<<<<<< Upstream, based on origin/master
 The Thing configuration for **Niko Home Control actions** has the following syntax:
+=======
+The thing configuration for **Niko Home Control actions** has the following syntax:
+>>>>>>> a2f7ff3 Refactor interfaces.
 
 ```
 Thing nikohomecontrol:<thing type>:<bridgeId>:<thingId> "Label" @ "Location"
@@ -98,6 +106,7 @@ Open the file with an unzip tool to read it's content.
 The `step` parameter is only available for dimmers.
 It sets a step value for dimmer increase/decrease actions. The parameter is optional and set to 10 by default.
 
+<<<<<<< Upstream, based on origin/master
 The Thing configuration for **Niko Home Control thermostats** has the following syntax:
 
 ```
@@ -114,6 +123,24 @@ thermostat <thingId> "Label" @ "Location" [ thermostatId=<Niko Home Control ther
 `thingId` can have any value, but will be set to the same value as the thermostatId parameter if discovery is used.
 
 `"Label"` is an optional label for the Thing.
+=======
+The thing configuration for **Niko Home Control thermostats** has the following syntax:
+
+```
+Thing nikohomecontrol:thermostat:<bridgeId>:<thingId> "Label" @ "Location"
+                        [ thermostatId=<Niko Home Control thermostat ID> ]
+```
+
+or nested in the bridge configuration:
+
+```
+thermostat <thingId> "Label" @ "Location" [ thermostatId=<Niko Home Control thermostat ID> ]
+```
+
+`thingId` can have any value, but will be set to the same value as the thermostatId parameter if discovery is used.
+
+`"Label"` is an optional label for the thing.
+>>>>>>> a2f7ff3 Refactor interfaces.
 
 `@ "Location"` is optional, and represents the location of the thing. Auto-discovery would have assigned a value automatically.
 

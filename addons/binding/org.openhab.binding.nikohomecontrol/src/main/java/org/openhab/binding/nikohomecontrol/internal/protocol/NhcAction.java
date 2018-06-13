@@ -10,7 +10,6 @@ package org.openhab.binding.nikohomecontrol.internal.protocol;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlActionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +39,7 @@ public final class NhcAction {
     private Integer openTime;
 
     @Nullable
-    private NikoHomeControlActionHandler thingHandler;
+    private NhcActionEvent eventHandler;
 
     NhcAction(int id, String name, Integer type, String location, @Nullable Integer closeTime,
             @Nullable Integer openTime) {
@@ -53,14 +52,14 @@ public final class NhcAction {
     }
 
     /**
-     * This method should be called if the ThingHandler for the thing corresponding to this action is initialized.
-     * It keeps a record of the thing handler in this object so the thing can be updated when
-     * the action receives an update from the Niko Home Control IP-interface.
+     * This method should be called when an object implementing the {@NhcActionEvent} interface is initialized.
+     * It keeps a record of the event handler in that object so it can be updated when the action receives an update
+     * from the Niko Home Control IP-interface.
      *
-     * @param handler
+     * @param eventHandler
      */
-    public void setThingHandler(NikoHomeControlActionHandler handler) {
-        this.thingHandler = handler;
+    public void setEventHandler(NhcActionEvent eventHandler) {
+        this.eventHandler = eventHandler;
     }
 
     /**
@@ -72,6 +71,15 @@ public final class NhcAction {
      */
     public void setNhcComm(NikoHomeControlCommunication nhcComm) {
         this.nhcComm = nhcComm;
+    }
+
+    /**
+     * Get the id of the action.
+     *
+     * @return the id
+     */
+    public int getId() {
+        return id;
     }
 
     /**
@@ -151,10 +159,10 @@ public final class NhcAction {
      */
     void setState(int state) {
         this.state = state;
-        NikoHomeControlActionHandler handler = thingHandler;
-        if (handler != null) {
+        NhcActionEvent eventHandler = this.eventHandler;
+        if (eventHandler != null) {
             logger.debug("Niko Home Control: update channel state for {} with {}", id, state);
-            handler.handleStateUpdate(this);
+            eventHandler.actionEvent(state);
         }
     }
 
@@ -162,9 +170,9 @@ public final class NhcAction {
      * Sends action to Niko Home Control.
      *
      * @param percent - The allowed values depend on the action type.
-     *                    switch action: 0 or 100
-     *                    dimmer action: between 0 and 100, 254 for on, 255 for off
-     *                    rollershutter action: 254 to close, 255 to open, 253 to stop
+     *                switch action: 0 or 100
+     *                dimmer action: between 0 and 100, 254 for on, 255 for off
+     *                rollershutter action: 254 to close, 255 to open, 253 to stop
      */
     public void execute(int percent) {
         logger.debug("Niko Home Control: execute action {} of type {} for {}", percent, this.type, this.id);

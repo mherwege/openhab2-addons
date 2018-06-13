@@ -17,7 +17,6 @@ import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
 import org.eclipse.smarthome.config.discovery.DiscoveryResult;
 import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
 import org.eclipse.smarthome.core.thing.ThingUID;
-import org.openhab.binding.nikohomecontrol.internal.NikoHomeControlBindingConstants;
 import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlBridgeHandler;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NhcAction;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NhcThermostat;
@@ -42,7 +41,7 @@ public class NikoHomeControlDiscoveryService extends AbstractDiscoveryService {
     private NikoHomeControlBridgeHandler handler;
 
     public NikoHomeControlDiscoveryService(NikoHomeControlBridgeHandler handler) {
-        super(NikoHomeControlBindingConstants.SUPPORTED_THING_TYPES_UIDS, TIMEOUT, false);
+        super(SUPPORTED_THING_TYPES_UIDS, TIMEOUT, false);
         logger.debug("Niko Home Control: discovery service {}", handler);
         this.bridgeUID = handler.getThing().getUID();
         this.handler = handler;

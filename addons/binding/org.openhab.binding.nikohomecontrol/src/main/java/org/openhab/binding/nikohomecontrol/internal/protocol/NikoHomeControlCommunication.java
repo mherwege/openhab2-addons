@@ -20,7 +20,6 @@ import java.util.Map;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlBridgeHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,8 +38,6 @@ import com.google.gson.JsonParseException;
  * </ul>
  *
  * Only switch, dimmer and rollershutter actions are currently implemented.
- *
- * A class instance is instantiated from the {@link NikoHomeControlBridgeHandler} class initialization.
  *
  * @author Mark Herwege - Initial Contribution
  */
@@ -69,7 +66,7 @@ public final class NikoHomeControlCommunication {
     private final Map<Integer, NhcThermostat> thermostats = new HashMap<>();
 
     @Nullable
-    private NikoHomeControlBridgeHandler bridgeCallBack;
+    private NhcController handler;
 
     /**
      * Constructor for Niko Home Control communication object, manages communication with
@@ -92,7 +89,6 @@ public final class NikoHomeControlCommunication {
      *
      */
     public synchronized void startCommunication() {
-        NikoHomeControlBridgeHandler handler = this.bridgeCallBack;
         try {
             for (int i = 1; nhcEventsRunning && (i <= 5); i++) {
                 // the events listener thread did not finish yet, so wait max 5000ms before restarting
@@ -105,11 +101,17 @@ public final class NikoHomeControlCommunication {
                 throw new IOException();
             }
 
+            NhcController handler = this.handler;
+
             if (handler == null) {
                 throw new IOException();
             }
             InetAddress addr = handler.getAddr();
-            int port = handler.getPort();
+            Integer port = handler.getPort();
+
+            if (port == null) {
+                throw new IOException();
+            }
 
             Socket socket = new Socket(addr, port);
             this.nhcSocket = socket;
@@ -130,7 +132,7 @@ public final class NikoHomeControlCommunication {
                     Thread.currentThread().getId());
             stopCommunication();
             if (handler != null) {
-                handler.bridgeOffline();
+                handler.controllerOffline();
             }
         }
     }
@@ -481,10 +483,10 @@ public final class NikoHomeControlCommunication {
     }
 
     private void eventGetAlarms(Map<String, String> data) {
-        NikoHomeControlBridgeHandler handler = this.bridgeCallBack;
-
         Integer type = Integer.valueOf(data.get("type"));
         String alarmText = data.get("text");
+
+        NhcController handler = this.handler;
 
         if (handler == null) {
             logger.error("Niko Home Control: triggering alarm '{}' but no bridge handler", alarmText);
@@ -494,11 +496,11 @@ public final class NikoHomeControlCommunication {
         switch (type) {
             case 0:
                 logger.debug("Niko Home Control: alarm - {}", alarmText);
-                handler.triggerAlarm(alarmText);
+                handler.alarmEvent(alarmText);
                 break;
             case 1:
                 logger.debug("Niko Home Control: notice - {}", alarmText);
-                handler.triggerNotice(alarmText);
+                handler.noticeEvent(alarmText);
                 break;
             default:
                 logger.debug("Niko Home Control: unexpected message type {}", type);
@@ -561,9 +563,9 @@ public final class NikoHomeControlCommunication {
     }
 
     /**
-     * @param bridgeCallBack the bridgeCallBack to set
+     * @param handler representing the callback interface {@link NhcController} for events
      */
-    public void setBridgeCallBack(NikoHomeControlBridgeHandler bridgeCallBack) {
-        this.bridgeCallBack = bridgeCallBack;
+    public void setNhcController(NhcController handler) {
+        this.handler = handler;
     }
 }
