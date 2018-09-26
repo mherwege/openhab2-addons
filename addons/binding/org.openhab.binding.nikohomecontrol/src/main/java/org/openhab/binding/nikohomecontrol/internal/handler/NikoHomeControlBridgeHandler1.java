@@ -21,22 +21,22 @@ import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
-import org.openhab.binding.nikohomecontrol.internal.protocol.NhcICommunication;
+import org.openhab.binding.nikohomecontrol.internal.protocol.nhc1.NikoHomeControlCommunication1;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * {@link NhcIBridgeHandler} is the handler for a Niko Home Control I IP-interface and connects it to
+ * {@link NikoHomeControlBridgeHandler1} is the handler for a Niko Home Control I IP-interface and connects it to
  * the framework.
  *
- * @author Mark Herwege
+ * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public class NhcIBridgeHandler extends NikoHomeControlBridgeHandler {
+public class NikoHomeControlBridgeHandler1 extends NikoHomeControlBridgeHandler {
 
-    private final Logger logger = LoggerFactory.getLogger(NhcIBridgeHandler.class);
+    private final Logger logger = LoggerFactory.getLogger(NikoHomeControlBridgeHandler1.class);
 
-    public NhcIBridgeHandler(Bridge nikoHomeControlBridge) {
+    public NikoHomeControlBridgeHandler1(Bridge nikoHomeControlBridge) {
         super(nikoHomeControlBridge);
     }
 
@@ -51,7 +51,7 @@ public class NhcIBridgeHandler extends NikoHomeControlBridgeHandler {
         logger.debug("Niko Home Control: bridge handler host {}, port {}", addr, port);
 
         if (addr != null) {
-            nhcComm = new NhcICommunication(this);
+            nhcComm = new NikoHomeControlCommunication1(this);
             startCommunication(nhcComm);
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR,
@@ -63,7 +63,7 @@ public class NhcIBridgeHandler extends NikoHomeControlBridgeHandler {
     protected void updateProperties() {
         Map<String, String> properties = new HashMap<>();
 
-        NhcICommunication comm = (NhcICommunication) nhcComm;
+        NikoHomeControlCommunication1 comm = (NikoHomeControlCommunication1) nhcComm;
         if (comm != null) {
             properties.put("softwareVersion", comm.getSystemInfo().getSwVersion());
             properties.put("apiVersion", comm.getSystemInfo().getApi());

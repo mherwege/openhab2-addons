@@ -16,7 +16,6 @@ import java.util.Map;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.smarthome.config.discovery.DiscoveryService;
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.Thing;
@@ -25,16 +24,14 @@ import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
-import org.eclipse.smarthome.io.net.http.HttpClientFactory;
 import org.openhab.binding.nikohomecontrol.internal.discovery.NikoHomeControlDiscoveryService;
-import org.openhab.binding.nikohomecontrol.internal.handler.NhcIBridgeHandler;
-import org.openhab.binding.nikohomecontrol.internal.handler.NhcIIBridgeHandler;
 import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlActionHandler;
 import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlBridgeHandler;
+import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlBridgeHandler1;
+import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlBridgeHandler2;
 import org.openhab.binding.nikohomecontrol.internal.handler.NikoHomeControlThermostatHandler;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 
 /**
  * The {@link NikoHomeControlHandlerFactory} is responsible for creating things and thing
@@ -47,10 +44,7 @@ import org.osgi.service.component.annotations.Reference;
 @NonNullByDefault
 public class NikoHomeControlHandlerFactory extends BaseThingHandlerFactory {
 
-    private Map<ThingUID, ServiceRegistration<?>> discoveryServiceRegs = new HashMap<>();
-
-    @NonNullByDefault({})
-    private HttpClient httpClient;
+    private final Map<ThingUID, ServiceRegistration<?>> discoveryServiceRegs = new HashMap<>();
 
     @Override
     public boolean supportsThingType(ThingTypeUID thingTypeUID) {
@@ -62,9 +56,9 @@ public class NikoHomeControlHandlerFactory extends BaseThingHandlerFactory {
         if (BRIDGE_THING_TYPES_UIDS.contains(thing.getThingTypeUID())) {
             NikoHomeControlBridgeHandler handler;
             if (BRIDGEII_THING_TYPE.equals(thing.getThingTypeUID())) {
-                handler = new NhcIIBridgeHandler((Bridge) thing, httpClient);
+                handler = new NikoHomeControlBridgeHandler2((Bridge) thing);
             } else {
-                handler = new NhcIBridgeHandler((Bridge) thing);
+                handler = new NikoHomeControlBridgeHandler1((Bridge) thing);
             }
             registerNikoHomeControlDiscoveryService(handler);
             return handler;
@@ -98,14 +92,5 @@ public class NikoHomeControlHandlerFactory extends BaseThingHandlerFactory {
                 }
             }
         }
-    }
-
-    @Reference
-    protected void setHttpClientFactory(HttpClientFactory httpClientFactory) {
-        this.httpClient = httpClientFactory.getCommonHttpClient();
-    }
-
-    protected void unsetHttpClientFactory(HttpClientFactory httpClientFactory) {
-        this.httpClient = null;
     }
 }

@@ -6,29 +6,30 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.nikohomecontrol.internal.protocol;
+package org.openhab.binding.nikohomecontrol.internal.protocol.nhc1;
 
-import static org.openhab.binding.nikohomecontrol.internal.protocol.NhcConstants.*;
+import static org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlConstants.*;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.nikohomecontrol.internal.protocol.NhcConstants.ActionType;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NhcAction;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlConstants.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The {@link NhcIAction} class represents the action Niko Home Control I communication object. It contains all fields
+ * The {@link NhcAction1} class represents the action Niko Home Control I communication object. It contains all fields
  * representing a Niko Home Control action and has methods to trigger the action in Niko Home Control and receive action
  * updates.
  *
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public class NhcIAction extends NhcAction {
+public class NhcAction1 extends NhcAction {
 
-    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(NhcAction1.class);
 
-    NhcIAction(String id, String name, ActionType type, @Nullable String location) {
+    NhcAction1(String id, String name, ActionType type, @Nullable String location) {
         super(id, name, type, location);
     }
 
@@ -71,7 +72,7 @@ public class NhcIAction extends NhcAction {
         }
 
         if (nhcComm != null) {
-            nhcComm.execute(this.id, value);
+            nhcComm.executeAction(this.id, value);
         }
     }
 }

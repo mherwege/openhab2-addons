@@ -15,7 +15,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 
 /**
- * The {@link NhcController} interface is used to get configuration information and to pass alarm or notice events
+ * The {@link NhcControllerEvent} interface is used to get configuration information and to pass alarm or notice events
  * received from the Niko Home Control controller to the consuming client. It is designed to pass events to openHAB
  * handlers that implement this interface. Because of the design, the
  * org.openhab.binding.nikohomecontrol.internal.protocol package can be extracted and used independent of openHAB.
@@ -23,21 +23,43 @@ import org.eclipse.jdt.annotation.Nullable;
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public interface NhcController {
+public interface NhcControllerEvent {
 
     /**
      * Get the IP-address of the Niko Home Control IP-interface.
      *
      * @return the addr
      */
-    public @Nullable InetAddress getAddr();
+    public default @Nullable InetAddress getAddr() {
+        return null;
+    };
 
     /**
      * Get the listening port of the Niko Home Control IP-interface.
      *
      * @return the port
      */
-    public @Nullable Integer getPort();
+    public default @Nullable Integer getPort() {
+        return null;
+    };
+
+    /**
+     * Get the touch profile of the Niko Home Control II system.
+     *
+     * @return the profile
+     */
+    public default String getProfile() {
+        return "";
+    };
+
+    /**
+     * Get the touch profile password of the Niko Home Control II system.
+     *
+     * @return the password
+     */
+    public default String getPassword() {
+        return "";
+    };
 
     /**
      * Called to indicate the connection with the Niko Home Control Controller is offline.

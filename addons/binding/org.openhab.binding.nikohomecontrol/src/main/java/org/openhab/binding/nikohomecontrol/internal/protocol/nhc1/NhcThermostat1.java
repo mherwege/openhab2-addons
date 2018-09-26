@@ -6,26 +6,27 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.nikohomecontrol.internal.protocol;
+package org.openhab.binding.nikohomecontrol.internal.protocol.nhc1;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NhcThermostat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The {@link NhcIThermostat} class represents the thermostat Niko Home Control I communication object. It contains all
+ * The {@link NhcThermostat1} class represents the thermostat Niko Home Control I communication object. It contains all
  * fields representing a Niko Home Control thermostat and has methods to set the thermostat in Niko Home Control and
  * receive thermostat updates.
  *
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public class NhcIThermostat extends NhcThermostat {
+public class NhcThermostat1 extends NhcThermostat {
 
-    private final Logger logger = LoggerFactory.getLogger(NhcIThermostat.class);
+    private final Logger logger = LoggerFactory.getLogger(NhcThermostat1.class);
 
-    NhcIThermostat(String id, String name, @Nullable String location) {
+    NhcThermostat1(String id, String name, @Nullable String location) {
         super(id, name, location);
     }
 
@@ -38,11 +39,8 @@ public class NhcIThermostat extends NhcThermostat {
     public void executeMode(int mode) {
         logger.debug("Niko Home Control: execute thermostat mode {} for {}", mode, this.id);
 
-        NhcMessageCmd nhcCmd = new NhcMessageCmd("executethermostat", this.id).withMode(mode);
-
-        NikoHomeControlCommunication comm = nhcComm;
-        if (comm != null) {
-            comm.sendMessage(nhcCmd);
+        if (nhcComm != null) {
+            nhcComm.executeThermostat(this.id, mode);
         }
     }
 
@@ -57,13 +55,8 @@ public class NhcIThermostat extends NhcThermostat {
         logger.debug("Niko Home Control: execute thermostat overrule {} during {} min for {}", overrule, overruletime,
                 this.id);
 
-        String overruletimeString = String.format("%1$02d:%2$02d", overruletime / 60, overruletime % 60);
-        NhcMessageCmd nhcCmd = new NhcMessageCmd("executethermostat", this.id).withOverrule(overrule)
-                .withOverruletime(overruletimeString);
-
-        NikoHomeControlCommunication comm = nhcComm;
-        if (comm != null) {
-            comm.sendMessage(nhcCmd);
+        if (nhcComm != null) {
+            nhcComm.executeThermostat(this.id, overrule, overruletime);
         }
     }
 }

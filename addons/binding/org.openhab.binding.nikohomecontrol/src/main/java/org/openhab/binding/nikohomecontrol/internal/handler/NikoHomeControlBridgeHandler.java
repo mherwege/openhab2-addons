@@ -10,7 +10,6 @@ package org.openhab.binding.nikohomecontrol.internal.handler;
 
 import static org.openhab.binding.nikohomecontrol.internal.NikoHomeControlBindingConstants.*;
 
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ScheduledFuture;
@@ -26,21 +25,21 @@ import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseBridgeHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.openhab.binding.nikohomecontrol.internal.discovery.NikoHomeControlDiscoveryService;
-import org.openhab.binding.nikohomecontrol.internal.protocol.NhcController;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NhcControllerEvent;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlCommunication;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * {@link NikoHomeControlBridgeHandler} is an abstract class representing a handler to all different interfaces to the
- * Niko Home
- * Control System. {@link NhcIBridgeHandler} or {@link NhcIIBridgeHandler} should be used for
- * the respective version of Niko Home Control.
+ * Niko Home Control System. {@link NikoHomeControlBridgeHandler1} or {@link NikoHomeControlBridgeHandler2} should be
+ * used for the respective
+ * version of Niko Home Control.
  *
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler implements NhcController {
+public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler implements NhcControllerEvent {
 
     private final Logger logger = LoggerFactory.getLogger(NikoHomeControlBridgeHandler.class);
 
@@ -48,10 +47,10 @@ public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler imp
     protected volatile NikoHomeControlCommunication nhcComm;
 
     @Nullable
-    private ScheduledFuture<?> refreshTimer;
+    private volatile ScheduledFuture<?> refreshTimer;
 
     @Nullable
-    protected NikoHomeControlDiscoveryService nhcDiscovery;
+    protected volatile NikoHomeControlDiscoveryService nhcDiscovery;
 
     public NikoHomeControlBridgeHandler(Bridge nikoHomeControlBridge) {
         super(nikoHomeControlBridge);
@@ -71,10 +70,6 @@ public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler imp
 
         scheduler.submit(() -> {
             this.nhcComm = comm;
-
-            // Set callback from NikoHomeControlCommunication object to this bridge to be able to take bridge
-            // offline when non-resolvable communication error occurs.
-            setNhcController();
 
             comm.startCommunication();
             if (!comm.communicationActive()) {
@@ -96,12 +91,6 @@ public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler imp
                 logger.debug("Niko Home Control: cannot discover devices, discovery service not started");
             }
         });
-    }
-
-    private void setNhcController() {
-        if (nhcComm != null) {
-            nhcComm.setNhcController(this);
-        }
     }
 
     /**
@@ -141,10 +130,9 @@ public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler imp
     }
 
     /**
-     * Take bridge offline when error in communication with Niko Home Control IP-interface. This method can also be
-     * called directly from {@link NikoHomeControlCommunication} object.
+     * Take bridge offline when error in communication with Niko Home Control IP-interface.
      */
-    public void bridgeOffline() {
+    protected void bridgeOffline() {
         updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR,
                 "Niko Home Control: error starting bridge connection");
     }
@@ -167,7 +155,7 @@ public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler imp
      * Update bridge properties with properties returned from Niko Home Control Controller, so they can be made visible
      * in PaperUI.
      */
-    abstract protected void updateProperties();
+    protected abstract void updateProperties();
 
     @Override
     public void dispose() {
@@ -247,15 +235,5 @@ public abstract class NikoHomeControlBridgeHandler extends BaseBridgeHandler imp
      */
     public @Nullable NikoHomeControlCommunication getCommunication() {
         return this.nhcComm;
-    }
-
-    @Override
-    public @Nullable InetAddress getAddr() {
-        return null;
-    }
-
-    @Override
-    public @Nullable Integer getPort() {
-        return null;
     }
 }

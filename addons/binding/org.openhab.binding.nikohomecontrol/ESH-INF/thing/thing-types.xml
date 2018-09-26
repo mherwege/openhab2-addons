@@ -36,24 +36,30 @@
 		<label>Niko Home Control II Bridge</label>
 		<description>This bridge represents a Niko Home Control II Connected Controller</description>
 		<config-description>
-			<parameter name="username" type="text" required="true">
-				<label>Username</label>
-				<description>Username for Niko Home Control II</description>
+			<parameter name="addr" type="text" required="true">
+				<label>IP or Host Name</label>
+				<description>IP Address of Connected Controller</description>
+				<advanced>false</advanced>
+				<context>network-address</context>
+			</parameter>
+			<parameter name="port" type="integer" required="false">
+				<label>Bridge port</label>
+				<description>Port for secure MQTT communication with Connected Controller, default 8883</description>
+				<default>8883</default>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="profile" type="text" required="true">
+				<label>Profile</label>
+				<description>Touch profile for Niko Home Control II</description>
 			</parameter>
 			<parameter name="password" type="text" required="true">
 				<label>Password</label>
-				<description>Password for Niko Home Control II</description>
+				<description>Password for Niko Home Control II touch profile, should not be empty</description>
 				<context>password</context>
-			</parameter>
-			<parameter name="polling" type="integer" required="false">
-				<label>Polling interval</label>
-				<description>Polling interval for updates of thing status (s), default 60.</description>
-				<default>60</default>
-				<advanced>true</advanced>
 			</parameter>
 			<parameter name="refresh" type="integer" required="false">
 				<label>Refresh interval</label>
-				<description>Refresh interval for connection with Niko Home Control Connected Controller (min), default 300. If set to 0 or left empty, no refresh will be scheduled</description>
+				<description>Refresh interval for connection with Connected Controller (min), default 300. If set to 0 or left empty, no refresh will be scheduled</description>
 				<default>300</default>
 				<advanced>true</advanced>
 			</parameter>
@@ -84,14 +90,14 @@
 			<bridge-type-ref id="bridge2" />
 		</supported-bridge-type-refs>
 		<label>Dimmer</label>
-		<description>Dimmer type actions in Niko Home Control</description>
+		<description>Dimmer type action in Niko Home Control</description>
 		<channels>
 			<channel id="brightness" typeId="brightness" />
 		</channels>
 		<config-description>
 			<parameter name="actionId" type="text" required="true">
 				<label>Action ID</label>
-				<description>Niko Home Control IP Interface Object ID</description>
+				<description>Niko Home Control action ID</description>
 				<advanced>false</advanced>
 			</parameter>
 			<parameter name="step" type="integer" required="true">
@@ -108,14 +114,14 @@
 			<bridge-type-ref id="bridge2" />
 		</supported-bridge-type-refs>
 		<label>Shutter</label>
-		<description>Rollershutter type actions in Niko Home Control</description>
+		<description>Rollershutter type action in Niko Home Control</description>
 		<channels>
 			<channel id="rollershutter" typeId="rollershutter" />
 		</channels>
 		<config-description>
 			<parameter name="actionId" type="text" required="true">
 				<label>Action ID</label>
-				<description>Niko Home Control IP Interface Object ID</description>
+				<description>Niko Home Control action ID</description>
 				<advanced>false</advanced>
 			</parameter>
 		</config-description>
@@ -133,9 +139,9 @@
 			<channel id="overruletime" typeId="overruletime" />
 		</channels>
 		<config-description>
-			<parameter name="thermostatId" type="integer" required="true">
+			<parameter name="thermostatId" type="text" required="true">
 				<label>Thermostat ID</label>
-				<description>Niko Home Control IP Interface Thermostat Object ID</description>
+				<description>Niko Home Control Thermostat ID</description>
 				<advanced>false</advanced>
 			</parameter>
 			<parameter name="overruleTime" type="integer" required="false">

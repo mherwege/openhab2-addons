@@ -10,7 +10,7 @@ package org.openhab.binding.nikohomecontrol.internal.handler;
 
 import static org.eclipse.smarthome.core.types.RefreshType.REFRESH;
 import static org.openhab.binding.nikohomecontrol.internal.NikoHomeControlBindingConstants.*;
-import static org.openhab.binding.nikohomecontrol.internal.protocol.NhcConstants.*;
+import static org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlConstants.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,8 +34,8 @@ import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NhcAction;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NhcActionEvent;
-import org.openhab.binding.nikohomecontrol.internal.protocol.NhcConstants.ActionType;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlCommunication;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlConstants.ActionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +79,7 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        Integer actionId = ((Number) this.getConfig().get(CONFIG_ACTION_ID)).intValue();
+        String actionId = (String) this.getConfig().get(CONFIG_ACTION_ID);
 
         Bridge nhcBridge = getBridge();
         if (nhcBridge == null) {
@@ -387,7 +387,7 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
     public void initialize() {
         Configuration config = this.getConfig();
 
-        Integer actionId = ((Number) config.get(CONFIG_ACTION_ID)).intValue();
+        String actionId = (String) config.get(CONFIG_ACTION_ID);
 
         Bridge nhcBridge = getBridge();
         if (nhcBridge == null) {
@@ -446,7 +446,7 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
     @Override
     public void actionEvent(int actionState) {
         Configuration config = this.getConfig();
-        Integer actionId = ((Number) config.get(CONFIG_ACTION_ID)).intValue();
+        String actionId = (String) config.get(CONFIG_ACTION_ID);
 
         ActionType actionType = nhcAction.getType();
 

@@ -6,18 +6,18 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.nikohomecontrol.internal.protocol;
+package org.openhab.binding.nikohomecontrol.internal.protocol.nhc1;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /**
- * The {@link NhcSystemInfo} class represents the systeminfo Niko Home Control communication object. It contains all
+ * The {@link NhcSystemInfo1} class represents the systeminfo Niko Home Control communication object. It contains all
  * Niko Home Control system data received from the Niko Home Control controller when initializing the connection.
  *
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public final class NhcSystemInfo {
+public final class NhcSystemInfo1 {
 
     private String swVersion = "";
     private String api = "";

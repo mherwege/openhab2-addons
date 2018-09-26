@@ -58,7 +58,7 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler implement
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        Integer thermostatId = ((Number) this.getConfig().get(CONFIG_THERMOSTAT_ID)).intValue();
+        String thermostatId = (String) this.getConfig().get(CONFIG_THERMOSTAT_ID);
 
         Bridge nhcBridge = getBridge();
         if (nhcBridge == null) {
@@ -175,7 +175,7 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler implement
     public void initialize() {
         Configuration config = this.getConfig();
 
-        Integer thermostatId = ((Number) config.get(CONFIG_THERMOSTAT_ID)).intValue();
+        String thermostatId = (String) config.get(CONFIG_THERMOSTAT_ID);
 
         Bridge nhcBridge = getBridge();
         if (nhcBridge == null) {

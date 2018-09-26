@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
 import org.eclipse.smarthome.config.discovery.DiscoveryResult;
 import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
@@ -44,13 +43,10 @@ public class NikoHomeControlBridgeDiscoveryService extends AbstractDiscoveryServ
     private final Logger logger = LoggerFactory.getLogger(NikoHomeControlBridgeDiscoveryService.class);
 
     @Nullable
-    private ScheduledFuture<?> nhcDiscoveryJob;
+    private volatile ScheduledFuture<?> nhcDiscoveryJob;
 
     @NonNullByDefault({})
     private NetworkAddressService networkAddressService;
-
-    @NonNullByDefault({})
-    private HttpClient httpClient;
 
     private static final int TIMEOUT = 5;
     private static final int REFRESH_INTERVAL = 60;
@@ -75,14 +71,14 @@ public class NikoHomeControlBridgeDiscoveryService extends AbstractDiscoveryServ
             if (nhcDiscover.isNhcII()) {
                 addNhcIIBridge(nhcDiscover.getAddr(), nhcDiscover.getNhcBridgeId());
             } else {
-                addNhcBridge(nhcDiscover.getAddr(), nhcDiscover.getNhcBridgeId());
+                addNhcIBridge(nhcDiscover.getAddr(), nhcDiscover.getNhcBridgeId());
             }
         } catch (IOException e) {
             logger.debug("Niko Home Control: no bridge found.");
         }
     }
 
-    private void addNhcBridge(InetAddress addr, String bridgeId) {
+    private void addNhcIBridge(InetAddress addr, String bridgeId) {
         logger.debug("Niko Home Control: NHC I bridge found at {}", addr);
 
         String bridgeName = "Niko Home Control Bridge";

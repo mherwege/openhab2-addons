@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * @author Mark Herwege - Initial Contribution
  */
 /**
- * @author MHERWEGE
+ * @author Mark Herwege - Initial Contribution
  *
  */
 @NonNullByDefault

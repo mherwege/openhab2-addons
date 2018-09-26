@@ -10,14 +10,16 @@ package org.openhab.binding.nikohomecontrol.internal.protocol;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.nikohomecontrol.internal.protocol.NhcConstants.ActionType;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlConstants.ActionType;
+import org.openhab.binding.nikohomecontrol.internal.protocol.nhc1.NhcAction1;
+import org.openhab.binding.nikohomecontrol.internal.protocol.nhc2.NhcAction2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * The {@link NhcAction} class represents the action Niko Home Control communication object. It contains all fields
  * representing a Niko Home Control action and has methods to trigger the action in Niko Home Control and receive action
- * updates. Specific implementation are {@link NhcIAction} and {@link NhcIIAction}.
+ * updates. Specific implementation are {@link NhcAction1} and {@link NhcAction2}.
  *
  * @author Mark Herwege - Initial Contribution
  */
@@ -33,14 +35,14 @@ public abstract class NhcAction {
     protected String name;
     protected ActionType type;
     protected @Nullable String location;
-    protected int state;
-    protected int closeTime = 0;
-    protected int openTime = 0;
+    protected volatile int state;
+    protected volatile int closeTime = 0;
+    protected volatile int openTime = 0;
 
     @Nullable
     private NhcActionEvent eventHandler;
 
-    NhcAction(String id, String name, ActionType type, @Nullable String location) {
+    protected NhcAction(String id, String name, ActionType type, @Nullable String location) {
         this.id = id;
         this.name = name;
         this.type = type;
@@ -121,6 +123,19 @@ public abstract class NhcAction {
     }
 
     /**
+     * Set openTime and closeTime for rollershutter action.
+     * <p>
+     * Time is in seconds to fully open or close a rollershutter.
+     *
+     * @param openTime
+     * @param closeTime
+     */
+    public void setShutterTimes(int openTime, int closeTime) {
+        this.openTime = openTime;
+        this.closeTime = closeTime;
+    }
+
+    /**
      * Get openTime of action.
      * <p>
      * openTime is the time in seconds to fully open a rollershutter.
@@ -158,13 +173,13 @@ public abstract class NhcAction {
      *                  dimmer action: between 0 and 100
      *                  rollershutter action: between 0 and 100
      */
-    void setState(int state) {
+    public void setState(int state) {
         this.state = state;
         updateState();
     }
 
     /**
-     * Sends action to Niko Home Control. This method is implemented in {@link NhcIAction} and {@link NhcIIAction}.
+     * Sends action to Niko Home Control. This method is implemented in {@link NhcAction1} and {@link NhcAction2}.
      *
      * @param command - The allowed values depend on the action type.
      *                    switch action: On or Off

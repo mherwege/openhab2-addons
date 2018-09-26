@@ -13,13 +13,14 @@ import java.time.temporal.ChronoUnit;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.nikohomecontrol.internal.protocol.nhc1.NhcThermostat1;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * The {@link NhcThermostat} class represents the thermostat Niko Home Control communication object. It contains all
  * fields representing a Niko Home Control thermostat and has methods to set the thermostat in Niko Home Control and
- * receive thermostat updates. Specific implementation are {@link NhcIThermostat} and {@link NhcIIThermostat}.
+ * receive thermostat updates. Specific implementation are {@link NhcThermostat1} and {@link NhcIIThermostat}.
  *
  * @author Mark Herwege - Initial Contribution
  */
@@ -34,12 +35,12 @@ public abstract class NhcThermostat {
     protected String id;
     protected String name;
     protected @Nullable String location;
-    protected int measured = 0;
-    protected int setpoint = 0;
-    protected int mode = 0;
-    protected int overrule = 0;
-    protected int overruletime = 0;
-    protected int ecosave = 0;
+    protected volatile int measured = 0;
+    protected volatile int setpoint = 0;
+    protected volatile int mode = 0;
+    protected volatile int overrule = 0;
+    protected volatile int overruletime = 0;
+    protected volatile int ecosave = 0;
 
     @Nullable
     private LocalDateTime overruleStart;
@@ -47,7 +48,7 @@ public abstract class NhcThermostat {
     @Nullable
     private NhcThermostatEvent eventHandler;
 
-    NhcThermostat(String id, String name, @Nullable String location) {
+    protected NhcThermostat(String id, String name, @Nullable String location) {
         this.id = id;
         this.name = name;
         this.location = location;
@@ -217,7 +218,7 @@ public abstract class NhcThermostat {
     }
 
     /**
-     * Sends thermostat mode to Niko Home Control. This method is implemented in {@link NhcIThermostat} and
+     * Sends thermostat mode to Niko Home Control. This method is implemented in {@link NhcThermostat1} and
      * {@link NhcIIThermostat}.
      *
      * @param mode
@@ -225,7 +226,7 @@ public abstract class NhcThermostat {
     public abstract void executeMode(int mode);
 
     /**
-     * Sends thermostat setpoint to Niko Home Control. This method is implemented in {@link NhcIThermostat} and
+     * Sends thermostat setpoint to Niko Home Control. This method is implemented in {@link NhcThermostat1} and
      * {@link NhcIIThermostat}.
      *
      * @param overrule temperature to overrule the setpoint in 0.1°C multiples

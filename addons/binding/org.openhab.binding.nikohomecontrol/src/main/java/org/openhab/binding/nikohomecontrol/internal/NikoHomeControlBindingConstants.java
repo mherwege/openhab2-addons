@@ -8,14 +8,13 @@
  */
 package org.openhab.binding.nikohomecontrol.internal;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
-
-import com.google.common.collect.Sets;
 
 /**
  * The {@link NikoHomeControlBindingConstants} class defines common constants, which are
@@ -31,7 +30,7 @@ public class NikoHomeControlBindingConstants {
     // List of all Thing Type UIDs
 
     // bridge
-    public static final ThingTypeUID BRIDGE_THING_TYPE = new ThingTypeUID(BINDING_ID, "bridge");
+    public static final ThingTypeUID BRIDGEI_THING_TYPE = new ThingTypeUID(BINDING_ID, "bridge");
     public static final ThingTypeUID BRIDGEII_THING_TYPE = new ThingTypeUID(BINDING_ID, "bridge2");
 
     // generic thing types
@@ -41,14 +40,13 @@ public class NikoHomeControlBindingConstants {
     public static final ThingTypeUID THING_TYPE_THERMOSTAT = new ThingTypeUID(BINDING_ID, "thermostat");
 
     // thing type sets
-    public static final Set<ThingTypeUID> BRIDGE_THING_TYPES_UIDS = Sets.newHashSet(BRIDGE_THING_TYPE,
-            BRIDGEII_THING_TYPE);
+    public static final Set<ThingTypeUID> BRIDGE_THING_TYPES_UIDS = Collections
+            .unmodifiableSet(Stream.of(BRIDGEI_THING_TYPE, BRIDGEII_THING_TYPE).collect(Collectors.toSet()));
     public static final Set<ThingTypeUID> ACTION_THING_TYPES_UIDS = Collections.unmodifiableSet(Stream
             .of(THING_TYPE_ON_OFF_LIGHT, THING_TYPE_DIMMABLE_LIGHT, THING_TYPE_BLIND).collect(Collectors.toSet()));
     public static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Collections.unmodifiableSet(
             Stream.of(THING_TYPE_ON_OFF_LIGHT, THING_TYPE_DIMMABLE_LIGHT, THING_TYPE_BLIND, THING_TYPE_THERMOSTAT)
                     .collect(Collectors.toSet()));
-
     // List of all Channel ids
     public static final String CHANNEL_SWITCH = "switch";
     public static final String CHANNEL_BRIGHTNESS = "brightness";
@@ -66,9 +64,8 @@ public class NikoHomeControlBindingConstants {
     public static final String CONFIG_HOST_NAME = "addr";
     public static final String CONFIG_PORT = "port";
     public static final String CONFIG_REFRESH = "refresh";
-    public static final String CONFIG_USERNAME = "username";
+    public static final String CONFIG_PROFILE = "profile";
     public static final String CONFIG_PASSWORD = "password";
-    public static final String CONFIG_POLLING = "polling";
 
     // Thing config properties
     public static final String CONFIG_ACTION_ID = "actionId";
