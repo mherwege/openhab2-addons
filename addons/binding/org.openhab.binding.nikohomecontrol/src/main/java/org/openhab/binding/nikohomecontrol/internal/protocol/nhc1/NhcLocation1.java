@@ -6,23 +6,26 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.nikohomecontrol.internal.protocol;
+package org.openhab.binding.nikohomecontrol.internal.protocol.nhc1;
+
+import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /**
- * The {@link NhcLocation} class represents the location Niko Home Control communication object. It contains all fields
+ * The {@link NhcLocation2} class represents the location Niko Home Control communication object. It contains all fields
  * representing a Niko Home Control location.
  *
  * @author Mark Herwege - Initial Contribution
  */
-final class NhcLocation {
+@NonNullByDefault
+public final class NhcLocation1 {
 
-    private String name;
+    private final String name;
 
-    NhcLocation(String name) {
+    public NhcLocation1(String name) {
         this.name = name;
     }
 
-    String getName() {
+    public String getName() {
         return this.name;
     }
 }

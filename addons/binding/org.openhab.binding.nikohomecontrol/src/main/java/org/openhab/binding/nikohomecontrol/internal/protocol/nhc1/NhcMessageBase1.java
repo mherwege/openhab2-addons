@@ -6,18 +6,18 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.nikohomecontrol.internal.protocol;
+package org.openhab.binding.nikohomecontrol.internal.protocol.nhc1;
 
 /**
- * Class {@link NhcMessageBase} used as base class for output from gson for cmd or event feedback from Niko Home
+ * Class {@link NhcMessageBase1} used as base class for output from gson for cmd or event feedback from Niko Home
  * Control. This class only contains the common base fields required for the deserializer
- * {@link NikoHomeControlMessageDeserializer} to select the specific formats implemented in {@link NhcMessageMap},
- * {@link NhcMessageListMap}, {@link NhcMessageCmd}.
+ * {@link NikoHomeControlMessageDeserializer1} to select the specific formats implemented in {@link NhcMessageMap1},
+ * {@link NhcMessageListMap1}, {@link NhcMessageCmd1}.
  * <p>
  *
  * @author Mark Herwege - Initial Contribution
  */
-abstract class NhcMessageBase {
+abstract class NhcMessageBase1 {
 
     private String cmd;
     private String event;

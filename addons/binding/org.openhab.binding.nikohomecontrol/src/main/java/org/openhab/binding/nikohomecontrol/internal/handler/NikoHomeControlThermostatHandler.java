@@ -30,6 +30,7 @@ import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NhcThermostat;
+import org.openhab.binding.nikohomecontrol.internal.protocol.NhcThermostatEvent;
 import org.openhab.binding.nikohomecontrol.internal.protocol.NikoHomeControlCommunication;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,9 +42,12 @@ import org.slf4j.LoggerFactory;
  * @author Mark Herwege - Initial Contribution
  */
 @NonNullByDefault
-public class NikoHomeControlThermostatHandler extends BaseThingHandler {
+public class NikoHomeControlThermostatHandler extends BaseThingHandler implements NhcThermostatEvent {
 
     private final Logger logger = LoggerFactory.getLogger(NikoHomeControlThermostatHandler.class);
+
+    @NonNullByDefault({})
+    private volatile NhcThermostat nhcThermostat;
 
     @Nullable
     private volatile ScheduledFuture<?> refreshTimer; // used to refresh the remaining overrule time every minute
@@ -54,7 +58,7 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        Integer thermostatId = ((Number) this.getConfig().get(CONFIG_THERMOSTAT_ID)).intValue();
+        String thermostatId = (String) this.getConfig().get(CONFIG_THERMOSTAT_ID);
 
         Bridge nhcBridge = getBridge();
         if (nhcBridge == null) {
@@ -88,7 +92,7 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler {
         }
 
         if (nhcComm.communicationActive()) {
-            handleCommandSelection(nhcThermostat, channelUID, command);
+            handleCommandSelection(channelUID, command);
         } else {
             // We lost connection but the connection object is there, so was correctly started.
             // Try to restart communication.
@@ -105,16 +109,17 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler {
                 nhcBridgeHandler.bridgeOnline();
 
                 // And finally handle the command
-                handleCommandSelection(nhcThermostat, channelUID, command);
+                handleCommandSelection(channelUID, command);
             });
         }
     }
 
-    private void handleCommandSelection(NhcThermostat nhcThermostat, ChannelUID channelUID, Command command) {
+    private void handleCommandSelection(ChannelUID channelUID, Command command) {
         logger.debug("Niko Home Control: handle command {} for {}", command, channelUID);
 
         if (REFRESH.equals(command)) {
-            handleStateUpdate(nhcThermostat);
+            thermostatEvent(nhcThermostat.getMeasured(), nhcThermostat.getSetpoint(), nhcThermostat.getMode(),
+                    nhcThermostat.getOverrule());
             return;
         }
 
@@ -170,7 +175,7 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler {
     public void initialize() {
         Configuration config = this.getConfig();
 
-        Integer thermostatId = ((Number) config.get(CONFIG_THERMOSTAT_ID)).intValue();
+        String thermostatId = (String) config.get(CONFIG_THERMOSTAT_ID);
 
         Bridge nhcBridge = getBridge();
         if (nhcBridge == null) {
@@ -192,7 +197,7 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler {
             return;
         }
 
-        NhcThermostat nhcThermostat = nhcComm.getThermostats().get(thermostatId);
+        nhcThermostat = nhcComm.getThermostats().get(thermostatId);
         if (nhcThermostat == null) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.CONFIGURATION_ERROR,
                     "Niko Home Control: thermostatId does not match a thermostat in the controller " + thermostatId);
@@ -201,24 +206,20 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler {
 
         String thermostatLocation = nhcThermostat.getLocation();
 
-        nhcThermostat.setThingHandler(this);
+        nhcThermostat.setEventHandler(this);
 
         if (thing.getLocation() == null) {
             thing.setLocation(thermostatLocation);
         }
 
-        handleStateUpdate(nhcThermostat);
+        thermostatEvent(nhcThermostat.getMeasured(), nhcThermostat.getSetpoint(), nhcThermostat.getMode(),
+                nhcThermostat.getOverrule());
 
         logger.debug("Niko Home Control: thermostat intialized {}", thermostatId);
     }
 
-    /**
-     * Method to update state of all channels, called from Niko Home Control thermostat.
-     *
-     * @param nhcThermostat Niko Home Control thermostat
-     *
-     */
-    public void handleStateUpdate(NhcThermostat nhcThermostat) {
+    @Override
+    public void thermostatEvent(Integer measured, Integer setpoint, Integer mode, Integer overrule) {
         updateState(CHANNEL_MEASURED, new QuantityType<Temperature>(nhcThermostat.getMeasured() / 10.0, CELSIUS));
 
         long overruletime = nhcThermostat.getRemainingOverruletime();
@@ -229,12 +230,12 @@ public class NikoHomeControlThermostatHandler extends BaseThingHandler {
         // If there is an overrule temperature set, use this in the setpoint channel, otherwise use the original
         // setpoint temperature
         if (overruletime == 0) {
-            updateState(CHANNEL_SETPOINT, new QuantityType<Temperature>(nhcThermostat.getSetpoint() / 10.0, CELSIUS));
+            updateState(CHANNEL_SETPOINT, new QuantityType<Temperature>(setpoint / 10.0, CELSIUS));
         } else {
-            updateState(CHANNEL_SETPOINT, new QuantityType<Temperature>(nhcThermostat.getOverrule() / 10.0, CELSIUS));
+            updateState(CHANNEL_SETPOINT, new QuantityType<Temperature>(overrule / 10.0, CELSIUS));
         }
 
-        updateState(CHANNEL_MODE, new DecimalType(nhcThermostat.getMode()));
+        updateState(CHANNEL_MODE, new DecimalType(mode));
 
         updateStatus(ThingStatus.ONLINE);
     }
