@@ -465,7 +465,6 @@ public class NikoHomeControlActionHandler extends BaseThingHandler implements Nh
                 break;
             case DIMMER:
                 updateState(CHANNEL_BRIGHTNESS, new PercentType(actionState));
-                updateState(CHANNEL_SWITCH, (actionState == 0) ? OnOffType.OFF : OnOffType.ON);
                 updateStatus(ThingStatus.ONLINE);
                 break;
             case ROLLERSHUTTER:
