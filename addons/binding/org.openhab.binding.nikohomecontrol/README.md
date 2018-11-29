@@ -8,14 +8,14 @@ For Niko Home Control I, the binding has been tested with a Niko Home Control IP
 The binding does not require a Niko Home Control Gateway (550-00580), but does work with it in the LAN. It will not make a remote connection.
 It has also been confirmed to work with the Niko Home Control Connected Controller (550-00003) in a Niko Home Control I installation.
 
-For Niko Home Control II, the binding requires the Niko Home Control Connected Controller (550-00003). The installation does not need to be 'connected' (registered on the Niko Home Control website), and will work stricly in the LAN.
+For Niko Home Control II, the binding requires the Niko Home Control Connected Controller (550-00003). The installation does not need to be 'connected' (registered on the Niko Home Control website), and will work strictly in the LAN.
 
 For Niko Home Control I, the binding exposes all actions from the Niko Home Control System that can be triggered from the smartphone/tablet interface, as defined in the Niko Home Control I programming software.
-For Niko Home Control II, the binding exposes all actions made visible in a touch profile, as configured in the Niko Home Control II programming software.
-No actual Niko Touchscreen is required in the installation.
+For Niko Home Control II, the binding exposes all actions made visible in a touch profile, as configured in the Niko Home Control programming software. You will need to create a profile (with a password) in the 'TOUCHSCREENS' section of the Niko Home Control programming software. No actual Niko Touchscreen is required in the installation.
 
-Supported device types are switches, dimmers and rollershutters or blinds and thermostats.
-Niko Home Control alarm and notice messages are retrieved and made available in the binding.
+## Supported Devices
+
+Supported device types are switches, dimmers and rollershutters or blinds and thermostats. Niko Home Control alarm and notice messages are retrieved and made available in the binding. For Niko Home Control II, only switches and dimmers are currently working.
 
 ## Supported Things
 
@@ -41,7 +41,7 @@ For Niko Home Control I, no further bridge configuration is required when using 
 
 The Niko Home Control II bridge has extra required parameters for the touch profile and password.
 Note that the password cannot be empty.
-Therefore, a password needs to be set in the Niko Home Control II programming software for the used touch profile.
+Therefore, a password needs to be set in the Niko Home Control programming software for the used touchscreen profile.
 
 An optional refresh interval will be used to restart the bridge at regular intervals (every 300 minutes by default).
 Restarting the bridge at regular times improves the connection stability and avoids loss of connection. It can be turned off completely by setting the parameter to 0.
