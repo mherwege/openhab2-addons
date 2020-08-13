@@ -21,6 +21,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+
 import org.apache.commons.lang.StringEscapeUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -29,9 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
-import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.helpers.XMLReaderFactory;
 
 /**
  *
@@ -74,13 +76,13 @@ public class UpnpXMLParser {
         }
         RenderingControlEventHandler handler = new RenderingControlEventHandler();
         try {
-            XMLReader reader = XMLReaderFactory.createXMLReader();
-            reader.setContentHandler(handler);
-            reader.parse(new InputSource(new StringReader(xml)));
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser saxParser = factory.newSAXParser();
+            saxParser.parse(new InputSource(new StringReader(xml)), handler);
         } catch (IOException e) {
             // This should never happen - we're not performing I/O!
             LOGGER.error("Could not parse Rendering Control from string '{}'", xml);
-        } catch (SAXException s) {
+        } catch (SAXException | ParserConfigurationException s) {
             LOGGER.error("Could not parse Rendering Control from string '{}'", xml);
         }
         return handler.getChanges();
@@ -93,13 +95,13 @@ public class UpnpXMLParser {
         }
         AVTransportEventHandler handler = new AVTransportEventHandler();
         try {
-            XMLReader reader = XMLReaderFactory.createXMLReader();
-            reader.setContentHandler(handler);
-            reader.parse(new InputSource(new StringReader(xml)));
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser saxParser = factory.newSAXParser();
+            saxParser.parse(new InputSource(new StringReader(xml)), handler);
         } catch (IOException e) {
             // This should never happen - we're not performing I/O!
             LOGGER.error("Could not parse AV Transport from string '{}'", xml, e);
-        } catch (SAXException s) {
+        } catch (SAXException | ParserConfigurationException s) {
             LOGGER.debug("Could not parse AV Transport from string '{}'", xml, s);
         }
         return handler.getChanges();
@@ -118,13 +120,13 @@ public class UpnpXMLParser {
         }
         EntryHandler handler = new EntryHandler();
         try {
-            XMLReader reader = XMLReaderFactory.createXMLReader();
-            reader.setContentHandler(handler);
-            reader.parse(new InputSource(new StringReader(xml)));
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser saxParser = factory.newSAXParser();
+            saxParser.parse(new InputSource(new StringReader(xml)), handler);
         } catch (IOException e) {
             // This should never happen - we're not performing I/O!
             LOGGER.error("Could not parse Entries from string '{}'", xml, e);
-        } catch (SAXException s) {
+        } catch (SAXException | ParserConfigurationException s) {
             LOGGER.debug("Could not parse Entries from string '{}'", xml, s);
         }
         return handler.getEntries();

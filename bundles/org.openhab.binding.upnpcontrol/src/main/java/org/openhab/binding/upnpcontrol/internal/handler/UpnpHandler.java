@@ -58,9 +58,9 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected @Nullable ScheduledFuture<?> pollingJob;
     protected final Object jobLock = new Object();
 
-    protected volatile @Nullable CompletableFuture<Boolean> connectionIdSet;
-    protected volatile @Nullable CompletableFuture<Boolean> avTransportIdSet;
-    protected volatile @Nullable CompletableFuture<Boolean> rcsIdSet;
+    protected volatile @Nullable CompletableFuture<Boolean> isConnectionIdSet;
+    protected volatile @Nullable CompletableFuture<Boolean> isAvTransportIdSet;
+    protected volatile @Nullable CompletableFuture<Boolean> isRcsIdSet;
     protected static final int UPNP_RESPONSE_TIMEOUT_MILLIS = 2500;
 
     protected static final int SUBSCRIPTION_DURATION_SECONDS = 3600;
@@ -90,6 +90,10 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     public void dispose() {
         removeSubscriptions();
         cancelPollingJob();
+
+        isConnectionIdSet = null;
+        isAvTransportIdSet = null;
+        isRcsIdSet = null;
 
         service.unregisterParticipant(this);
     }
@@ -127,8 +131,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected abstract void initJob();
 
     protected boolean checkForConnectionIds() {
-        return checkForConnectionId(connectionIdSet) & checkForConnectionId(avTransportIdSet)
-                & checkForConnectionId(rcsIdSet);
+        return checkForConnectionId(isConnectionIdSet) & checkForConnectionId(isAvTransportIdSet)
+                & checkForConnectionId(isRcsIdSet);
     }
 
     private boolean checkForConnectionId(@Nullable CompletableFuture<Boolean> future) {
@@ -153,9 +157,9 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      */
     protected void prepareForConnection(String remoteProtocolInfo, String peerConnectionManager, int peerConnectionId,
             String direction) {
-        CompletableFuture<Boolean> settingConnection = connectionIdSet;
-        CompletableFuture<Boolean> settingAVTransport = avTransportIdSet;
-        CompletableFuture<Boolean> settingRcs = rcsIdSet;
+        CompletableFuture<Boolean> settingConnection = isConnectionIdSet;
+        CompletableFuture<Boolean> settingAVTransport = isAvTransportIdSet;
+        CompletableFuture<Boolean> settingRcs = isRcsIdSet;
         if (settingConnection != null) {
             settingConnection.complete(false);
         }
@@ -167,9 +171,9 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         }
 
         // Set new futures, so we don't try to use service when connection id's are not known yet
-        connectionIdSet = new CompletableFuture<Boolean>();
-        avTransportIdSet = new CompletableFuture<Boolean>();
-        rcsIdSet = new CompletableFuture<Boolean>();
+        isConnectionIdSet = new CompletableFuture<Boolean>();
+        isAvTransportIdSet = new CompletableFuture<Boolean>();
+        isRcsIdSet = new CompletableFuture<Boolean>();
 
         HashMap<String, String> inputs = new HashMap<String, String>();
         inputs.put("RemoteProtocolInfo", remoteProtocolInfo);
@@ -194,8 +198,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      * Result is received in {@link onValueReceived}.
      */
     protected void getCurrentConnectionInfo() {
-        CompletableFuture<Boolean> settingAVTransport = avTransportIdSet;
-        CompletableFuture<Boolean> settingRcs = rcsIdSet;
+        CompletableFuture<Boolean> settingAVTransport = isAvTransportIdSet;
+        CompletableFuture<Boolean> settingRcs = isRcsIdSet;
         if (settingAVTransport != null) {
             settingAVTransport.complete(false);
         }
@@ -204,8 +208,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         }
 
         // Set new futures, so we don't try to use service when connection id's are not known yet
-        avTransportIdSet = new CompletableFuture<Boolean>();
-        rcsIdSet = new CompletableFuture<Boolean>();
+        isAvTransportIdSet = new CompletableFuture<Boolean>();
+        isRcsIdSet = new CompletableFuture<Boolean>();
 
         // ConnectionID will default to 0 if not set through prepareForConnection method
         Map<String, String> inputs = Collections.singletonMap("ConnectionId", Integer.toString(connectionId));
@@ -303,7 +307,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
                 } catch (NumberFormatException e) {
                     connectionId = 0;
                 }
-                CompletableFuture<Boolean> connectionIdFuture = connectionIdSet;
+                CompletableFuture<Boolean> connectionIdFuture = isConnectionIdSet;
                 if (connectionIdFuture != null) {
                     connectionIdFuture.complete(true);
                 }
@@ -314,7 +318,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
                 } catch (NumberFormatException e) {
                     avTransportId = 0;
                 }
-                CompletableFuture<Boolean> avTransportIdFuture = avTransportIdSet;
+                CompletableFuture<Boolean> avTransportIdFuture = isAvTransportIdSet;
                 if (avTransportIdFuture != null) {
                     avTransportIdFuture.complete(true);
                 }
@@ -325,7 +329,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
                 } catch (NumberFormatException e) {
                     rcsId = 0;
                 }
-                CompletableFuture<Boolean> rcsIdFuture = rcsIdSet;
+                CompletableFuture<Boolean> rcsIdFuture = isRcsIdSet;
                 if (rcsIdFuture != null) {
                     rcsIdFuture.complete(true);
                 }
