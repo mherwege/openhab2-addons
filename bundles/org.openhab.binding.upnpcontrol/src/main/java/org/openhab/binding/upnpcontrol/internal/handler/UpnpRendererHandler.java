@@ -220,6 +220,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                     addSubscriptions();
                 }
 
+                getProtocolInfo();
+
                 getCurrentConnectionInfo();
                 if (!checkForConnectionIds()) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
@@ -227,7 +229,6 @@ public class UpnpRendererHandler extends UpnpHandler {
                     return;
                 }
 
-                getProtocolInfo();
                 getTransportState();
 
                 updateStatus(ThingStatus.ONLINE);
@@ -646,11 +647,6 @@ public class UpnpRendererHandler extends UpnpHandler {
                     updateState(RIGHT_VOLUME, PercentType.valueOf(value));
                 }
                 break;
-            case "Sink":
-                if (!((value == null) || (value.isEmpty()))) {
-                    updateProtocolInfo(value);
-                }
-                break;
             case "CurrentTransportState":
             case "TransportState":
                 onValueReceivedTransportState(value);
@@ -793,7 +789,8 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
-    private void updateProtocolInfo(String value) {
+    @Override
+    protected void updateProtocolInfo(String value) {
         sink.clear();
         supportedAudioFormats.clear();
         audioSupport = false;

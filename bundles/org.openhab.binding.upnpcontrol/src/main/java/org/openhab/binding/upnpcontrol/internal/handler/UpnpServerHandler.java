@@ -424,7 +424,6 @@ public class UpnpServerHandler extends UpnpHandler {
                     updateTitleSelection(new ArrayList<UpnpEntry>());
                 }
                 break;
-            case "Source":
             case "NumberReturned":
             case "TotalMatches":
             case "UpdateID":
@@ -433,6 +432,10 @@ public class UpnpServerHandler extends UpnpHandler {
                 super.onValueReceived(variable, value, service);
                 break;
         }
+    }
+
+    @Override
+    protected void updateProtocolInfo(String value) {
     }
 
     /**

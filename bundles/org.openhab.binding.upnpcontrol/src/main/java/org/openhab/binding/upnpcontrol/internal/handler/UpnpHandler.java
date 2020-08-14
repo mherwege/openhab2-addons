@@ -334,10 +334,23 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
                     rcsIdFuture.complete(true);
                 }
                 break;
+            case "Source":
+            case "Sink":
+                if (!((value == null) || (value.isEmpty()))) {
+                    updateProtocolInfo(value);
+                }
+                break;
             default:
                 break;
         }
     }
+
+    /**
+     * Update internal representation of supported protocols, needs to be implemented in derived classes.
+     *
+     * @param value
+     */
+    abstract protected void updateProtocolInfo(String value);
 
     /**
      * Subscribe this handler as a participant to a GENA subscription.
