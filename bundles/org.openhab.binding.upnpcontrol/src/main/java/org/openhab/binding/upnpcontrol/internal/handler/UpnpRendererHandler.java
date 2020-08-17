@@ -619,7 +619,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 break;
             case "MuteMaster":
                 if (!((value == null) || (value.isEmpty()))) {
-                    updateState(MUTE, OnOffType.from(Boolean.parseBoolean(value)));
+                    updateState(MUTE, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
                 }
                 break;
             case "VolumeMaster":
@@ -629,7 +629,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 break;
             case "MuteLF":
                 if (!((value == null) || (value.isEmpty()))) {
-                    updateState(LEFT_MUTE, OnOffType.from(Boolean.parseBoolean(value)));
+                    updateState(LEFT_MUTE, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
                 }
                 break;
             case "VolumeLF":
@@ -639,7 +639,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 break;
             case "MuteRF":
                 if (!((value == null) || (value.isEmpty()))) {
-                    updateState(RIGHT_MUTE, OnOffType.from(Boolean.parseBoolean(value)));
+                    updateState(RIGHT_MUTE, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
                 }
                 break;
             case "VolumeRF":
