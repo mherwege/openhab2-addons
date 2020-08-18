@@ -14,12 +14,15 @@ package org.openhab.binding.upnpcontrol.internal;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.net.URL;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
@@ -88,53 +91,13 @@ public class UpnpXMLParser {
         return handler.getChanges();
     }
 
-    public static Map<String, String> getAVTransportFromXML(String xml) {
-        if (xml.isEmpty()) {
-            LOGGER.debug("Could not parse AV Transport from empty xml");
-            return Collections.emptyMap();
-        }
-        AVTransportEventHandler handler = new AVTransportEventHandler();
-        try {
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            SAXParser saxParser = factory.newSAXParser();
-            saxParser.parse(new InputSource(new StringReader(xml)), handler);
-        } catch (IOException e) {
-            // This should never happen - we're not performing I/O!
-            LOGGER.error("Could not parse AV Transport from string '{}'", xml, e);
-        } catch (SAXException | ParserConfigurationException s) {
-            LOGGER.debug("Could not parse AV Transport from string '{}'", xml, s);
-        }
-        return handler.getChanges();
-    }
-
-    /**
-     * @param xml
-     * @return a list of Entries from the given xml string.
-     * @throws IOException
-     * @throws SAXException
-     */
-    public static List<UpnpEntry> getEntriesFromXML(String xml) {
-        if (xml.isEmpty()) {
-            LOGGER.debug("Could not parse Entries from empty xml");
-            return Collections.emptyList();
-        }
-        EntryHandler handler = new EntryHandler();
-        try {
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            SAXParser saxParser = factory.newSAXParser();
-            saxParser.parse(new InputSource(new StringReader(xml)), handler);
-        } catch (IOException e) {
-            // This should never happen - we're not performing I/O!
-            LOGGER.error("Could not parse Entries from string '{}'", xml, e);
-        } catch (SAXException | ParserConfigurationException s) {
-            LOGGER.debug("Could not parse Entries from string '{}'", xml, s);
-        }
-        return handler.getEntries();
-    }
-
     private static class RenderingControlEventHandler extends DefaultHandler {
 
         private final Map<String, @Nullable String> changes = new HashMap<>();
+
+        RenderingControlEventHandler() {
+            // shouldn't be used outside of this package.
+        }
 
         @Override
         public void startElement(@Nullable String uri, @Nullable String localName, @Nullable String qName,
@@ -165,6 +128,25 @@ public class UpnpXMLParser {
         }
     }
 
+    public static Map<String, String> getAVTransportFromXML(String xml) {
+        if (xml.isEmpty()) {
+            LOGGER.debug("Could not parse AV Transport from empty xml");
+            return Collections.emptyMap();
+        }
+        AVTransportEventHandler handler = new AVTransportEventHandler();
+        try {
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser saxParser = factory.newSAXParser();
+            saxParser.parse(new InputSource(new StringReader(xml)), handler);
+        } catch (IOException e) {
+            // This should never happen - we're not performing I/O!
+            LOGGER.error("Could not parse AV Transport from string '{}'", xml, e);
+        } catch (SAXException | ParserConfigurationException s) {
+            LOGGER.debug("Could not parse AV Transport from string '{}'", xml, s);
+        }
+        return handler.getChanges();
+    }
+
     private static class AVTransportEventHandler extends DefaultHandler {
 
         private final Map<String, String> changes = new HashMap<String, String>();
@@ -188,6 +170,31 @@ public class UpnpXMLParser {
         public Map<String, String> getChanges() {
             return changes;
         }
+    }
+
+    /**
+     * @param xml
+     * @return a list of Entries from the given xml string.
+     * @throws IOException
+     * @throws SAXException
+     */
+    public static List<UpnpEntry> getEntriesFromXML(String xml) {
+        if (xml.isEmpty()) {
+            LOGGER.debug("Could not parse Entries from empty xml");
+            return Collections.emptyList();
+        }
+        EntryHandler handler = new EntryHandler();
+        try {
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser saxParser = factory.newSAXParser();
+            saxParser.parse(new InputSource(new StringReader(xml)), handler);
+        } catch (IOException e) {
+            // This should never happen - we're not performing I/O!
+            LOGGER.error("Could not parse Entries from string '{}'", xml, e);
+        } catch (SAXException | ParserConfigurationException s) {
+            LOGGER.debug("Could not parse Entries from string '{}'", xml, s);
+        }
+        return handler.getEntries();
     }
 
     private static class EntryHandler extends DefaultHandler {
@@ -392,6 +399,95 @@ public class UpnpXMLParser {
 
         public List<UpnpEntry> getEntries() {
             return entries;
+        }
+    }
+
+    public static Set<String> parseAudioChannelDescription(URL descriptorURL) {
+        AudioChannelHandler handler = new AudioChannelHandler();
+        try {
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser saxParser = factory.newSAXParser();
+            URL url = new URL(descriptorURL.toString());
+            saxParser.parse(new InputSource(url.openStream()), handler);
+        } catch (IOException | SAXException | ParserConfigurationException e) {
+            LOGGER.error("Could not parse audio channels from string '{}'", descriptorURL.toString());
+        }
+        return handler.getAudioChannels();
+    }
+
+    private static class AudioChannelHandler extends DefaultHandler {
+
+        Set<String> audioChannels = new HashSet<>();
+
+        private boolean stateVariableTag;
+        private boolean nameTag;
+        private boolean channelTag;
+        private boolean allowedValueTag;
+
+        AudioChannelHandler() {
+            // shouldn't be used outside of this package.
+        }
+
+        @Override
+        public void startElement(@Nullable String uri, @Nullable String localName, @Nullable String qName,
+                @Nullable Attributes attributes) throws SAXException {
+            if (qName == null) {
+                return;
+            }
+
+            switch (qName) {
+                case "stateVariable":
+                    stateVariableTag = true;
+                    break;
+                case "name":
+                    if (stateVariableTag) {
+                        nameTag = true;
+                    }
+                    break;
+                case "allowedValue":
+                    if (stateVariableTag) {
+                        allowedValueTag = true;
+                    }
+                    break;
+            }
+        }
+
+        @Override
+        public void characters(char @Nullable [] ch, int start, int length) throws SAXException {
+            if (nameTag) {
+                String name = new String(ch, start, length);
+                if ("A_ARG_TYPE_Channel".equals(name)) {
+                    channelTag = true;
+                }
+            }
+            if (channelTag && allowedValueTag) {
+                String channel = new String(ch, start, length);
+                audioChannels.add(channel);
+                allowedValueTag = false;
+            }
+        }
+
+        @Override
+        public void endElement(@Nullable String uri, @Nullable String localName, @Nullable String qName)
+                throws SAXException {
+            if (qName == null) {
+                return;
+            }
+
+            switch (qName) {
+                case "stateVariable":
+                    stateVariableTag = false;
+                    nameTag = false;
+                    channelTag = false;
+                    break;
+                case "allowedValue":
+                    allowedValueTag = false;
+                    break;
+            }
+        }
+
+        public Set<String> getAudioChannels() {
+            return audioChannels;
         }
     }
 

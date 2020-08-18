@@ -26,6 +26,7 @@ import org.eclipse.smarthome.config.discovery.upnp.UpnpDiscoveryParticipant;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.jupnp.model.meta.RemoteDevice;
+import org.jupnp.model.meta.RemoteService;
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +56,11 @@ public class UpnpControlDiscoveryParticipant implements UpnpDiscoveryParticipant
             Map<String, Object> properties = new HashMap<>();
             properties.put("ipAddress", device.getIdentity().getDescriptorURL().getHost());
             properties.put("udn", device.getIdentity().getUdn().getIdentifierString());
+            String descriptorURL = device.getIdentity().getDescriptorURL().toString();
+            for (RemoteService service : device.getServices()) {
+                String serviceType = service.getServiceType().getType();
+                properties.put(serviceType, descriptorURL + service.getDescriptorURI());
+            }
             result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withProperties(properties)
                     .withRepresentationProperty("udn").build();
         }

@@ -11,12 +11,10 @@
 		<channels>
 			<channel id="volume" typeId="system.volume"/>
 			<channel id="mute" typeId="system.mute"/>
-			<channel id="lfvolume" typeId="lfvolume"/>
-			<channel id="lfmute" typeId="lfmute"/>
-			<channel id="rfvolume" typeId="rfvolume"/>
-			<channel id="rfmute" typeId="rfmute"/>
+
 			<channel id="control" typeId="system.media-control"/>
 			<channel id="stop" typeId="stop"/>
+
 			<channel id="title" typeId="system.media-title"/>
 			<channel id="album" typeId="album"/>
 			<channel id="albumart" typeId="albumart"/>
@@ -84,30 +82,6 @@
 	</thing-type>
 
 	<!-- Channel Types -->
-	<channel-type id="lfvolume">
-		<item-type>Dimmer</item-type>
-		<label>LF Volume</label>
-		<description>Left Front Volume</description>
-		<category>SoundVolume</category>
-	</channel-type>
-	<channel-type id="lfmute">
-		<item-type>Switch</item-type>
-		<label>LF Mute</label>
-		<description>Left Front Mute</description>
-		<category>SoundVolume</category>
-	</channel-type>
-	<channel-type id="rfvolume">
-		<item-type>Dimmer</item-type>
-		<label>RF Volume</label>
-		<description>Right Front Volume</description>
-		<category>SoundVolume</category>
-	</channel-type>
-	<channel-type id="rfmute">
-		<item-type>Switch</item-type>
-		<label>RF Mute</label>
-		<description>Right Front Mute</description>
-		<category>SoundVolume</category>
-	</channel-type>
 	<channel-type id="stop">
 		<item-type>Switch</item-type>
 		<label>Stop</label>

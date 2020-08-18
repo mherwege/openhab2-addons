@@ -12,7 +12,10 @@
  */
 package org.openhab.binding.upnpcontrol.internal.handler;
 
+import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.BINDING_ID;
+
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -22,15 +25,26 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.eclipse.smarthome.core.thing.Channel;
+import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
+import org.eclipse.smarthome.core.thing.binding.ThingHandlerService;
+import org.eclipse.smarthome.core.thing.binding.builder.ChannelBuilder;
+import org.eclipse.smarthome.core.thing.binding.builder.ThingBuilder;
+import org.eclipse.smarthome.core.thing.type.ChannelType;
+import org.eclipse.smarthome.core.thing.type.ChannelTypeBuilder;
+import org.eclipse.smarthome.core.thing.type.ChannelTypeUID;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOParticipant;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
+import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
+import org.openhab.binding.upnpcontrol.internal.UpnpChannelTypeProvider;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +62,10 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     private final Logger logger = LoggerFactory.getLogger(UpnpHandler.class);
 
     protected UpnpIOService service;
+
+    private boolean updateChannels;
+    private final List<Channel> updatedChannels = new ArrayList<>();
+    private final List<ChannelUID> updatedChannelUIDs = new ArrayList<>();
 
     protected volatile int connectionId = 0; // UPnP Connection Id
     protected volatile int avTransportId = 0; // UPnP AVTtransport Id
@@ -74,6 +92,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     };
     protected volatile boolean upnpSubscribed;
 
+    protected @Nullable UpnpChannelTypeProvider channelTypeProvider;
+
     public UpnpHandler(Thing thing, UpnpIOService upnpIOService) {
         super(thing);
 
@@ -87,6 +107,11 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     }
 
     @Override
+    public Collection<Class<? extends ThingHandlerService>> getServices() {
+        return Collections.singleton(UpnpChannelTypeProvider.class);
+    }
+
+    @Override
     public void dispose() {
         removeSubscriptions();
         cancelPollingJob();
@@ -94,6 +119,10 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         isConnectionIdSet = null;
         isAvTransportIdSet = null;
         isRcsIdSet = null;
+
+        updateChannels = false;
+        updatedChannels.clear();
+        updatedChannelUIDs.clear();
 
         service.unregisterParticipant(this);
     }
@@ -129,6 +158,47 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      * connection is lost.
      */
     protected abstract void initJob();
+
+    public void setChannelTypeProvider(final UpnpChannelTypeProvider channelTypeProvider) {
+        this.channelTypeProvider = channelTypeProvider;
+    }
+
+    protected void createChannel(@Nullable UpnpChannelName upnpChannelName) {
+        UpnpChannelTypeProvider localChannelTypeProvider = channelTypeProvider;
+
+        if ((upnpChannelName == null) || (localChannelTypeProvider == null)) {
+            return;
+        }
+
+        ChannelUID channelUID = new ChannelUID(thing.getUID(), upnpChannelName.getChannelId());
+        ChannelTypeUID channelTypeUID = new ChannelTypeUID(BINDING_ID, channelUID.getId());
+        ChannelType channelType = ChannelTypeBuilder
+                .state(channelTypeUID, upnpChannelName.getLabel(), upnpChannelName.getItemType())
+                .withDescription(upnpChannelName.getDescription()).withCategory(upnpChannelName.getCategory())
+                .isAdvanced(upnpChannelName.isAdvanced()).build();
+        localChannelTypeProvider.addChannelType(channelType);
+        Channel channel = ChannelBuilder.create(channelUID, upnpChannelName.getItemType()).withType(channelTypeUID)
+                .build();
+        logger.debug("Created channel {}", upnpChannelName.getChannelId());
+
+        updatedChannels.add(channel);
+        updatedChannelUIDs.add(channelUID);
+        updateChannels = true;
+    }
+
+    protected void updateChannels() {
+        if (updateChannels) {
+            List<Channel> channels = thing.getChannels().stream().filter(c -> !updatedChannelUIDs.contains(c.getUID()))
+                    .collect(Collectors.toList());
+            channels.addAll(updatedChannels);
+            final ThingBuilder thingBuilder = editThing();
+            thingBuilder.withChannels(channels);
+            updateThing(thingBuilder.build());
+        }
+        updatedChannels.clear();
+        updatedChannelUIDs.clear();
+        updateChannels = false;
+    }
 
     protected boolean checkForConnectionIds() {
         return checkForConnectionId(isConnectionIdSet) & checkForConnectionId(isAvTransportIdSet)

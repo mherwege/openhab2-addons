@@ -45,10 +45,6 @@ public class UpnpControlBindingConstants {
     // List of all Channel ids
     public static final String VOLUME = "volume";
     public static final String MUTE = "mute";
-    public static final String LEFT_VOLUME = "lfvolume";
-    public static final String LEFT_MUTE = "lfmute";
-    public static final String RIGHT_VOLUME = "rfvolume";
-    public static final String RIGHT_MUTE = "rfmute";
     public static final String CONTROL = "control";
     public static final String STOP = "stop";
     public static final String TITLE = "title";
@@ -73,4 +69,7 @@ public class UpnpControlBindingConstants {
     public static final String CONFIG_FILTER = "filter";
     public static final String SORT_CRITERIA = "sortcriteria";
     public static final String SEEK_STEP = "seekstep";
+
+    // Master volume and mute identifier
+    public static final String UPNP_MASTER = "Master";
 }

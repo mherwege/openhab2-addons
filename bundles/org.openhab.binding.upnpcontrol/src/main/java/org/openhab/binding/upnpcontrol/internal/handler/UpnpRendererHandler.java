@@ -14,6 +14,8 @@ package org.openhab.binding.upnpcontrol.internal.handler;
 
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,6 +57,7 @@ import org.eclipse.smarthome.io.net.http.HttpUtil;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSink;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
+import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
 import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlRendererConfiguration;
@@ -84,10 +87,6 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile UpnpAudioSinkReg audioSinkReg;
 
     protected @NonNullByDefault({}) UpnpControlRendererConfiguration config;
-
-    private static final String UPNP_MASTER_CHANNEL = "Master";
-    private static final String UPNP_LF_CHANNEL = "LF";
-    private static final String UPNP_RF_CHANNEL = "RF";
 
     private volatile String transportState = "";
 
@@ -180,6 +179,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         serviceSubscriptions.add("RenderingControl");
 
         this.audioSinkReg = audioSinkReg;
+
     }
 
     @Override
@@ -216,6 +216,13 @@ public class UpnpRendererHandler extends UpnpHandler {
                     return;
                 }
 
+                Set<String> audioChannels = getAudioChannelsFromDescriptor();
+                if (audioChannels != null) {
+                    for (String audioChannel : audioChannels) {
+                        createAudioChannels(audioChannel);
+                    }
+                    updateChannels();
+                }
                 if (!upnpSubscribed) {
                     addSubscriptions();
                 }
@@ -233,6 +240,30 @@ public class UpnpRendererHandler extends UpnpHandler {
 
                 updateStatus(ThingStatus.ONLINE);
             }
+        }
+    }
+
+    private @Nullable Set<String> getAudioChannelsFromDescriptor() {
+        URL descriptor;
+        String descriptorString = thing.getProperties().get("RenderingControl");
+        try {
+            descriptor = new URL(descriptorString);
+        } catch (MalformedURLException e) {
+            logger.debug("Mal formed descriptor URL: {}", descriptorString);
+            return null;
+        }
+        Set<String> audioChannels = UpnpXMLParser.parseAudioChannelDescription(descriptor);
+        logger.debug("Audio channels discovered: {}", audioChannels);
+        return audioChannels;
+    }
+
+    private void createAudioChannels(String audioChannel) {
+        if (UPNP_MASTER.equals(audioChannel)) {
+            createChannel(UpnpChannelName.channelIdToUpnpChannelName("loudness"));
+        } else {
+            createChannel(UpnpChannelName.channelIdToUpnpChannelName(audioChannel.toLowerCase() + "volume"));
+            createChannel(UpnpChannelName.channelIdToUpnpChannelName(audioChannel.toLowerCase() + "mute"));
+            createChannel(UpnpChannelName.channelIdToUpnpChannelName(audioChannel.toLowerCase() + "loudness"));
         }
     }
 
@@ -361,6 +392,9 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param channel
      */
     protected void getVolume(String channel) {
+        if (!isLinked(channel)) {
+            return;
+        }
         Map<String, String> inputs = new HashMap<>();
         inputs.put("InstanceID", Integer.toString(rcsId));
         inputs.put("Channel", channel);
@@ -389,7 +423,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param volume
      */
     public void setVolume(PercentType volume) {
-        setVolume(UPNP_MASTER_CHANNEL, volume);
+        setVolume(UPNP_MASTER, volume);
     }
 
     /**
@@ -422,6 +456,35 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     /**
+     * Invoke getMute on UPnP Rendering Control.
+     * Result is received in {@link onValueReceived}.
+     *
+     * @param channel
+     */
+    protected void getLoudness(String channel) {
+        Map<String, String> inputs = new HashMap<>();
+        inputs.put("InstanceID", Integer.toString(rcsId));
+        inputs.put("Channel", channel);
+
+        invokeAction("RenderingControl", "GetLoudness", inputs);
+    }
+
+    /**
+     * Invoke SetMute on UPnP Rendering Control.
+     *
+     * @param channel
+     * @param mute
+     */
+    protected void setLoudness(String channel, OnOffType mute) {
+        Map<String, String> inputs = new HashMap<>();
+        inputs.put("InstanceID", Integer.toString(rcsId));
+        inputs.put("Channel", channel);
+        inputs.put("DesiredLoudness", mute == OnOffType.ON ? "1" : "0");
+
+        invokeAction("RenderingControl", "SetLoudness", inputs);
+    }
+
+    /**
      * Invoke GetTransportState on UPnP AV Transport.
      * Result is received in {@link onValueReceived}.
      */
@@ -446,115 +509,121 @@ public class UpnpRendererHandler extends UpnpHandler {
         logger.debug("Handle command {} for channel {} on renderer {}", command, channelUID, thing.getLabel());
 
         String transportState;
+        String id = channelUID.getId();
+        UpnpChannelName name = UpnpChannelName.channelIdToUpnpChannelName(id);
         if (command instanceof RefreshType) {
-            switch (channelUID.getId()) {
-                case VOLUME:
-                    getVolume(UPNP_MASTER_CHANNEL);
-                    break;
-                case MUTE:
-                    getMute(UPNP_MASTER_CHANNEL);
-                    break;
-                case LEFT_VOLUME:
-                    getVolume(UPNP_LF_CHANNEL);
-                    break;
-                case LEFT_MUTE:
-                    getMute(UPNP_LF_CHANNEL);
-                    break;
-                case RIGHT_VOLUME:
-                    getVolume(UPNP_RF_CHANNEL);
-                    break;
-                case RIGHT_MUTE:
-                    getMute(UPNP_RF_CHANNEL);
-                    break;
-                case CONTROL:
-                    transportState = this.transportState;
-                    State newState = UnDefType.UNDEF;
-                    if ("PLAYING".equals(transportState)) {
-                        newState = PlayPauseType.PLAY;
-                    } else if ("STOPPED".equals(transportState)) {
-                        newState = PlayPauseType.PAUSE;
-                    } else if ("PAUSED_PLAYBACK".equals(transportState)) {
-                        newState = PlayPauseType.PAUSE;
-                    }
-                    updateState(channelUID, newState);
-                    break;
-                case TRACK_POSITION:
-                    updateState(channelUID, new QuantityType<>(trackPosition, SmartHomeUnits.SECOND));
-                    break;
-                case REL_TRACK_POSITION:
-                    int relPosition = (trackDuration != 0) ? (trackPosition * 100) / trackDuration : 0;
-                    updateState(channelUID, new PercentType(relPosition));
-                    break;
+            if (isLinked(id) && (name != null)) {
+                if (name.isVolumeChannel()) {
+                    getVolume(name.getChannelId());
+                } else if (name.isMuteChannel()) {
+                    getMute(name.getChannelId());
+                } else if (name.isLoudnessChannel()) {
+                    getLoudness(name.getChannelId());
+                }
+            } else {
+                switch (id) {
+                    case VOLUME:
+                        getVolume(UPNP_MASTER);
+                        break;
+                    case MUTE:
+                        getMute(UPNP_MASTER);
+                        break;
+                    case CONTROL:
+                        transportState = this.transportState;
+                        State newState = UnDefType.UNDEF;
+                        if ("PLAYING".equals(transportState)) {
+                            newState = PlayPauseType.PLAY;
+                        } else if ("STOPPED".equals(transportState)) {
+                            newState = PlayPauseType.PAUSE;
+                        } else if ("PAUSED_PLAYBACK".equals(transportState)) {
+                            newState = PlayPauseType.PAUSE;
+                        }
+                        updateState(channelUID, newState);
+                        break;
+                    case TRACK_POSITION:
+                        updateState(channelUID, new QuantityType<>(trackPosition, SmartHomeUnits.SECOND));
+                        break;
+                    case REL_TRACK_POSITION:
+                        int relPosition = (trackDuration != 0) ? (trackPosition * 100) / trackDuration : 0;
+                        updateState(channelUID, new PercentType(relPosition));
+                        break;
+                    default:
+                        break;
+                }
             }
         } else {
-            switch (channelUID.getId()) {
-                case VOLUME:
-                    setVolume(UPNP_MASTER_CHANNEL, (PercentType) command);
-                    break;
-                case MUTE:
-                    setMute(UPNP_MASTER_CHANNEL, (OnOffType) command);
-                    break;
-                case LEFT_VOLUME:
-                    setVolume(UPNP_LF_CHANNEL, (PercentType) command);
-                    break;
-                case LEFT_MUTE:
-                    setMute(UPNP_LF_CHANNEL, (OnOffType) command);
-                    break;
-                case RIGHT_VOLUME:
-                    setVolume(UPNP_RF_CHANNEL, (PercentType) command);
-                    break;
-                case RIGHT_MUTE:
-                    setMute(UPNP_RF_CHANNEL, (OnOffType) command);
-                    break;
-                case STOP:
-                    if (command == OnOffType.ON) {
-                        updateState(CONTROL, PlayPauseType.PAUSE);
-                        playerStopped = true;
-                        stop();
-                        updateState(TRACK_POSITION, new QuantityType<>(0, SmartHomeUnits.SECOND));
-                    }
-                    break;
-                case CONTROL:
-                    playerStopped = false;
-                    if (command instanceof PlayPauseType) {
-                        if (command == PlayPauseType.PLAY) {
-                            play();
-                        } else if (command == PlayPauseType.PAUSE) {
-                            pause();
+            if (name != null) {
+                if (name.isVolumeChannel() && (command instanceof PercentType)) {
+                    setVolume(name.getChannelId(), (PercentType) command);
+                } else if (name.isMuteChannel() && (command instanceof OnOffType)) {
+                    setMute(name.getChannelId(), (OnOffType) command);
+                } else if (name.isLoudnessChannel() && (command instanceof OnOffType)) {
+                    setLoudness(name.getChannelId(), (OnOffType) command);
+                }
+            } else {
+                switch (id) {
+                    case VOLUME:
+                        if (command instanceof PercentType) {
+                            setVolume(UPNP_MASTER, (PercentType) command);
                         }
-                    } else if (command instanceof NextPreviousType) {
-                        if (command == NextPreviousType.NEXT) {
+                        break;
+                    case MUTE:
+                        if (command instanceof OnOffType) {
+                            setMute(UPNP_MASTER, (OnOffType) command);
+                        }
+                        break;
+                    case STOP:
+                        if (command == OnOffType.ON) {
+                            updateState(CONTROL, PlayPauseType.PAUSE);
                             playerStopped = true;
-                            serveNext();
-                        } else if (command == NextPreviousType.PREVIOUS) {
-                            playerStopped = true;
-                            servePrevious();
+                            stop();
+                            updateState(TRACK_POSITION, new QuantityType<>(0, SmartHomeUnits.SECOND));
                         }
-                    } else if (command instanceof RewindFastforwardType) {
-                        int pos = 0;
-                        if (command == RewindFastforwardType.FASTFORWARD) {
-                            pos = Integer.min(trackDuration, trackPosition + config.seekstep);
-                        } else if (command == RewindFastforwardType.REWIND) {
-                            pos = Integer.max(0, trackPosition - config.seekstep);
-                        }
-                        seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
-                    }
-                    break;
-                case TRACK_POSITION:
-                    if (command instanceof QuantityType<?>) {
-                        QuantityType<?> position = ((QuantityType<?>) command).toUnit(SmartHomeUnits.SECOND);
-                        if (position != null) {
-                            int pos = Integer.min(trackDuration, position.intValue());
+                        break;
+                    case CONTROL:
+                        playerStopped = false;
+                        if (command instanceof PlayPauseType) {
+                            if (command == PlayPauseType.PLAY) {
+                                play();
+                            } else if (command == PlayPauseType.PAUSE) {
+                                pause();
+                            }
+                        } else if (command instanceof NextPreviousType) {
+                            if (command == NextPreviousType.NEXT) {
+                                playerStopped = true;
+                                serveNext();
+                            } else if (command == NextPreviousType.PREVIOUS) {
+                                playerStopped = true;
+                                servePrevious();
+                            }
+                        } else if (command instanceof RewindFastforwardType) {
+                            int pos = 0;
+                            if (command == RewindFastforwardType.FASTFORWARD) {
+                                pos = Integer.min(trackDuration, trackPosition + config.seekstep);
+                            } else if (command == RewindFastforwardType.REWIND) {
+                                pos = Integer.max(0, trackPosition - config.seekstep);
+                            }
                             seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
                         }
-                    }
-                    break;
-                case REL_TRACK_POSITION:
-                    if (command instanceof PercentType) {
-                        int pos = ((PercentType) command).intValue() * trackDuration / 100;
-                        seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
-                    }
-                    break;
+                        break;
+                    case TRACK_POSITION:
+                        if (command instanceof QuantityType<?>) {
+                            QuantityType<?> position = ((QuantityType<?>) command).toUnit(SmartHomeUnits.SECOND);
+                            if (position != null) {
+                                int pos = Integer.min(trackDuration, position.intValue());
+                                seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
+                            }
+                        }
+                        break;
+                    case REL_TRACK_POSITION:
+                        if (command instanceof PercentType) {
+                            int pos = ((PercentType) command).intValue() * trackDuration / 100;
+                            seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
+                        }
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     }
@@ -584,11 +653,11 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else {
             switch (variable) {
                 case "CurrentMute":
-                    return "Mute" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER_CHANNEL);
+                    return "Mute" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER);
                 case "CurrentVolume":
-                    return "Volume" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER_CHANNEL);
+                    return "Volume" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER);
                 case "CurrentLoudness":
-                    return "Loudness" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER_CHANNEL);
+                    return "Loudness" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER);
                 default:
                     return variable;
             }
@@ -613,73 +682,77 @@ public class UpnpRendererHandler extends UpnpHandler {
             return;
         }
 
-        switch (variable) {
-            case "LastChange":
-                onValueReceivedLastChange(value, service);
-                break;
-            case "MuteMaster":
-                if (!((value == null) || (value.isEmpty()))) {
-                    updateState(MUTE, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
-                }
-                break;
-            case "VolumeMaster":
-                if (!((value == null) || (value.isEmpty()))) {
+        if (variable.startsWith("Volume")) {
+            if (!((value == null) || (value.isEmpty()))) {
+                String upnpChannel = variable.replace("Volume", "");
+                if (UPNP_MASTER.equals(upnpChannel)) {
                     updateState(VOLUME, PercentType.valueOf(value));
-                }
-                break;
-            case "MuteLF":
-                if (!((value == null) || (value.isEmpty()))) {
-                    updateState(LEFT_MUTE, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
-                }
-                break;
-            case "VolumeLF":
-                if (!((value == null) || (value.isEmpty()))) {
-                    updateState(LEFT_VOLUME, PercentType.valueOf(value));
-                }
-                break;
-            case "MuteRF":
-                if (!((value == null) || (value.isEmpty()))) {
-                    updateState(RIGHT_MUTE, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
-                }
-                break;
-            case "VolumeRF":
-                if (!((value == null) || (value.isEmpty()))) {
-                    updateState(RIGHT_VOLUME, PercentType.valueOf(value));
-                }
-                break;
-            case "CurrentTransportState":
-            case "TransportState":
-                onValueReceivedTransportState(value);
-                break;
-            case "CurrentTrackURI":
-                onValueReceivedCurrentTrackURI(value);
-                break;
-            case "CurrentTrackMetaData":
-                if (!((value == null) || (value.isEmpty()))) {
-                    List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
-                    if (!list.isEmpty()) {
-                        updateMetaDataState(list.get(0));
+                } else {
+                    UpnpChannelName name = UpnpChannelName.volumeChannelId(upnpChannel);
+                    if (name != null) {
+                        updateState(name.getChannelId(), PercentType.valueOf(value));
                     }
                 }
-                break;
-            case "NextAVTransportURIMetaData":
-                if (!((value == null) || (value.isEmpty() || "NOT_IMPLEMENTED".equals(value)))) {
-                    List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
-                    if (!list.isEmpty()) {
-                        nextEntry = list.get(0);
+            }
+        } else if (variable.startsWith("Mute")) {
+            if (!((value == null) || (value.isEmpty()))) {
+                String upnpChannel = variable.replace("Mute", "");
+                if (UPNP_MASTER.equals(upnpChannel)) {
+                    updateState(MUTE, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
+                } else {
+                    UpnpChannelName name = UpnpChannelName.muteChannelId(upnpChannel);
+                    if (name != null) {
+                        updateState(name.getChannelId(), "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
                     }
                 }
-                break;
-            case "CurrentTrackDuration":
-            case "TrackDuration":
-                onValueReceivedTrackDuration(value);
-                break;
-            case "RelTime":
-                onValueReceivedRelTime(value);
-                break;
-            default:
-                super.onValueReceived(variable, value, service);
-                break;
+            }
+        } else if (variable.startsWith("Loudness")) {
+            if (!((value == null) || (value.isEmpty()))) {
+                String upnpChannel = variable.replace("Loudness", "");
+                UpnpChannelName name = UpnpChannelName.loudnessChannelId(upnpChannel);
+                if (name != null) {
+                    updateState(name.getChannelId(), "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
+                }
+            }
+        } else {
+            switch (variable) {
+                case "LastChange":
+                    onValueReceivedLastChange(value, service);
+                    break;
+                case "CurrentTransportState":
+                case "TransportState":
+                    onValueReceivedTransportState(value);
+                    break;
+                case "CurrentTrackURI":
+                    onValueReceivedCurrentTrackURI(value);
+                    break;
+                case "CurrentTrackMetaData":
+                    if (!((value == null) || (value.isEmpty()))) {
+                        List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
+                        if (!list.isEmpty()) {
+                            updateMetaDataState(list.get(0));
+                        }
+                    }
+                    break;
+                case "NextAVTransportURIMetaData":
+                    if (!((value == null) || (value.isEmpty() || "NOT_IMPLEMENTED".equals(value)))) {
+                        List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
+                        if (!list.isEmpty()) {
+                            nextEntry = list.get(0);
+                        }
+                    }
+                    break;
+                case "CurrentTrackDuration":
+                case "TrackDuration":
+                    onValueReceivedTrackDuration(value);
+                    break;
+                case "RelTime":
+                    onValueReceivedRelTime(value);
+                    break;
+                default:
+                    super.onValueReceived(variable, value, service);
+                    break;
+            }
         }
     }
 
