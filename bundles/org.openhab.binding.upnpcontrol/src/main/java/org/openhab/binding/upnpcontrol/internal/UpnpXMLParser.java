@@ -19,10 +19,8 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
@@ -31,6 +29,7 @@ import javax.xml.parsers.SAXParserFactory;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.upnpcontrol.internal.services.UpnpRenderingControlConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.Attributes;
@@ -402,29 +401,31 @@ public class UpnpXMLParser {
         }
     }
 
-    public static Set<String> parseAudioChannelDescription(URL descriptorURL) {
-        AudioChannelHandler handler = new AudioChannelHandler();
+    public static UpnpRenderingControlConfiguration parseRenderingControlDescription(URL descriptorURL) {
+        RenderingControlHandler handler = new RenderingControlHandler();
         try {
             SAXParserFactory factory = SAXParserFactory.newInstance();
             SAXParser saxParser = factory.newSAXParser();
             URL url = new URL(descriptorURL.toString());
             saxParser.parse(new InputSource(url.openStream()), handler);
         } catch (IOException | SAXException | ParserConfigurationException e) {
-            LOGGER.error("Could not parse audio channels from string '{}'", descriptorURL.toString());
+            LOGGER.error("Could not parse rendering control configuration from string '{}'", descriptorURL.toString());
         }
-        return handler.getAudioChannels();
+        return handler.getRenderingControlConfiguration();
     }
 
-    private static class AudioChannelHandler extends DefaultHandler {
+    private static class RenderingControlHandler extends DefaultHandler {
 
-        Set<String> audioChannels = new HashSet<>();
+        UpnpRenderingControlConfiguration config = new UpnpRenderingControlConfiguration();
 
         private boolean stateVariableTag;
         private boolean nameTag;
         private boolean channelTag;
+        private boolean volumeTag;
         private boolean allowedValueTag;
+        private boolean maximumTag;
 
-        AudioChannelHandler() {
+        RenderingControlHandler() {
             // shouldn't be used outside of this package.
         }
 
@@ -449,6 +450,10 @@ public class UpnpXMLParser {
                         allowedValueTag = true;
                     }
                     break;
+                case "maximum":
+                    if (stateVariableTag) {
+                        maximumTag = true;
+                    }
             }
         }
 
@@ -456,14 +461,32 @@ public class UpnpXMLParser {
         public void characters(char @Nullable [] ch, int start, int length) throws SAXException {
             if (nameTag) {
                 String name = new String(ch, start, length);
-                if ("A_ARG_TYPE_Channel".equals(name)) {
-                    channelTag = true;
+                switch (name) {
+                    case "A_ARG_TYPE_Channel":
+                        channelTag = true;
+                        break;
+                    case "Volume":
+                        config.volume = true;
+                        volumeTag = true;
+                        break;
+                    case "Mute":
+                        config.mute = true;
+                        break;
+                    case "Loudness":
+                        config.loudness = true;
+                        break;
                 }
             }
             if (channelTag && allowedValueTag) {
                 String channel = new String(ch, start, length);
-                audioChannels.add(channel);
-                allowedValueTag = false;
+                config.audioChannels.add(channel);
+            }
+            if (volumeTag && maximumTag) {
+                try {
+                    config.maxvolume = Integer.valueOf(new String(ch, start, length));
+                } catch (NumberFormatException ignore) {
+                    // keep default value
+                }
             }
         }
 
@@ -479,15 +502,20 @@ public class UpnpXMLParser {
                     stateVariableTag = false;
                     nameTag = false;
                     channelTag = false;
+                    volumeTag = false;
+                    maximumTag = false;
                     break;
                 case "allowedValue":
                     allowedValueTag = false;
                     break;
+                case "maximum":
+                    maximumTag = false;
+                    break;
             }
         }
 
-        public Set<String> getAudioChannels() {
-            return audioChannels;
+        public UpnpRenderingControlConfiguration getRenderingControlConfiguration() {
+            return config;
         }
     }
 
