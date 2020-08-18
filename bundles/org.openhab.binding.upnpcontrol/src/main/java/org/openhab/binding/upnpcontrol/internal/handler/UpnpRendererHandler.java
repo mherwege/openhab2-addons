@@ -403,9 +403,6 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param channel
      */
     protected void getVolume(String channel) {
-        if (!isLinked(channel)) {
-            return;
-        }
         Map<String, String> inputs = new HashMap<>();
         inputs.put("InstanceID", Integer.toString(rcsId));
         inputs.put("Channel", channel);
@@ -531,11 +528,11 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (command instanceof RefreshType) {
             if (isLinked(id) && (name != null)) {
                 if (name.isVolumeChannel()) {
-                    getVolume(name.getChannelId());
+                    getVolume(name.getChannelDescriptor());
                 } else if (name.isMuteChannel()) {
-                    getMute(name.getChannelId());
+                    getMute(name.getChannelDescriptor());
                 } else if (name.isLoudnessChannel()) {
-                    getLoudness(name.getChannelId());
+                    getLoudness(name.getChannelDescriptor());
                 }
             } else {
                 switch (id) {
@@ -571,11 +568,11 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else {
             if (name != null) {
                 if (name.isVolumeChannel() && (command instanceof PercentType)) {
-                    setVolume(name.getChannelId(), (PercentType) command);
+                    setVolume(name.getChannelDescriptor(), (PercentType) command);
                 } else if (name.isMuteChannel() && (command instanceof OnOffType)) {
-                    setMute(name.getChannelId(), (OnOffType) command);
+                    setMute(name.getChannelDescriptor(), (OnOffType) command);
                 } else if (name.isLoudnessChannel() && (command instanceof OnOffType)) {
-                    setLoudness(name.getChannelId(), (OnOffType) command);
+                    setLoudness(name.getChannelDescriptor(), (OnOffType) command);
                 }
             } else {
                 switch (id) {
@@ -753,7 +750,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
             int volume = Integer.valueOf(value);
             if (config != null) {
-                volume = volume / config.maxvolume * 100;
+                volume = volume * 100 / config.maxvolume;
             }
 
             String upnpChannel = variable.replace("Volume", "");
@@ -762,7 +759,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             } else {
                 UpnpChannelName name = UpnpChannelName.volumeChannelId(upnpChannel);
                 if (name != null) {
-                    updateState(name.getChannelId(), PercentType.valueOf(value));
+                    updateState(name.getChannelId(), new PercentType(volume));
                 }
             }
         }

@@ -175,7 +175,7 @@ public enum UpnpChannelName {
     /**
      * @return The UPnP channel descriptor of the Channel
      */
-    String getChannelDescriptor() {
+    public String getChannelDescriptor() {
         return channelDescriptor;
     }
 
@@ -195,11 +195,11 @@ public enum UpnpChannelName {
     }
 
     public static @Nullable UpnpChannelName muteChannelId(final String upnpChannelDescriptor) {
-        return UPNP_VOLUME_CHANNEL_DESCRIPTOR_MAP.get(upnpChannelDescriptor);
+        return UPNP_MUTE_CHANNEL_DESCRIPTOR_MAP.get(upnpChannelDescriptor);
     }
 
     public static @Nullable UpnpChannelName loudnessChannelId(final String upnpChannelDescriptor) {
-        return UPNP_VOLUME_CHANNEL_DESCRIPTOR_MAP.get(upnpChannelDescriptor);
+        return UPNP_LOUDNESS_CHANNEL_DESCRIPTOR_MAP.get(upnpChannelDescriptor);
     }
 
     public boolean isVolumeChannel() {
