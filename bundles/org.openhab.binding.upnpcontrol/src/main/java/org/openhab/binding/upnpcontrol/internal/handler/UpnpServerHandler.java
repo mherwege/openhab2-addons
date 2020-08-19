@@ -22,7 +22,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
@@ -75,12 +80,14 @@ public class UpnpServerHandler extends UpnpHandler {
     private @NonNullByDefault({}) ChannelUID rendererChannelUID;
     private @NonNullByDefault({}) ChannelUID currentSelectionChannelUID;
 
+    private volatile @Nullable CompletableFuture<Boolean> isBrowsing;
+
     private volatile UpnpEntry currentEntry = new UpnpEntry(DIRECTORY_ROOT, DIRECTORY_ROOT, DIRECTORY_ROOT,
             "object.container");
-    private volatile List<UpnpEntry> entries = Collections.synchronizedList(new ArrayList<>()); // current entry list in
-                                                                                                // selection
-    private volatile Map<String, UpnpEntry> parentMap = new HashMap<>(); // store parents in hierarchy separately to be
-                                                                         // able to move up in directory structure
+    // current entry list in selection
+    private List<UpnpEntry> entries = Collections.synchronizedList(new ArrayList<>());
+    // store parents in hierarchy separately to be able to move up in directory structure
+    private volatile Map<String, UpnpEntry> parentMap = new ConcurrentHashMap<>();
 
     private UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider;
     private UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider;
@@ -200,7 +207,7 @@ public class UpnpServerHandler extends UpnpHandler {
                         if (UP.equals(browseTarget)) {
                             // Move up in tree
                             browseTarget = currentEntry.getParentId();
-                            if (browseTarget.isEmpty()) {
+                            if (browseTarget.isEmpty() || !parentMap.containsKey(browseTarget)) {
                                 // No parent found, so make it the root directory
                                 browseTarget = DIRECTORY_ROOT;
                             }
@@ -358,15 +365,25 @@ public class UpnpServerHandler extends UpnpHandler {
      */
     public void browse(String objectID, String browseFlag, String filter, String startingIndex, String requestedCount,
             String sortCriteria) {
-        Map<String, String> inputs = new HashMap<>();
-        inputs.put("ObjectID", objectID);
-        inputs.put("BrowseFlag", browseFlag);
-        inputs.put("Filter", filter);
-        inputs.put("StartingIndex", startingIndex);
-        inputs.put("RequestedCount", requestedCount);
-        inputs.put("SortCriteria", sortCriteria);
+        CompletableFuture<Boolean> browsing = isBrowsing;
+        try {
+            if ((browsing == null) || (browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))) {
+                // wait for maximum 2.5s until browsing is finished
+                Map<String, String> inputs = new HashMap<>();
+                inputs.put("ObjectID", objectID);
+                inputs.put("BrowseFlag", browseFlag);
+                inputs.put("Filter", filter);
+                inputs.put("StartingIndex", startingIndex);
+                inputs.put("RequestedCount", requestedCount);
+                inputs.put("SortCriteria", sortCriteria);
 
-        invokeAction("ContentDirectory", "Browse", inputs);
+                invokeAction("ContentDirectory", "Browse", inputs);
+            } else {
+                logger.debug("Cannot browse, cancelled querying the server");
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.debug("Cannot browse, previous server query interrupted or timed out");
+        }
     }
 
     /**
@@ -386,15 +403,25 @@ public class UpnpServerHandler extends UpnpHandler {
      */
     public void search(String containerID, String searchCriteria, String filter, String startingIndex,
             String requestedCount, String sortCriteria) {
-        Map<String, String> inputs = new HashMap<>();
-        inputs.put("ContainerID", containerID);
-        inputs.put("SearchCriteria", searchCriteria);
-        inputs.put("Filter", filter);
-        inputs.put("StartingIndex", startingIndex);
-        inputs.put("RequestedCount", requestedCount);
-        inputs.put("SortCriteria", sortCriteria);
+        CompletableFuture<Boolean> browsing = isBrowsing;
+        try {
+            if ((browsing == null) || (browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))) {
+                // wait for maximum 2.5s until browsing is finished
+                Map<String, String> inputs = new HashMap<>();
+                inputs.put("ContainerID", containerID);
+                inputs.put("SearchCriteria", searchCriteria);
+                inputs.put("Filter", filter);
+                inputs.put("StartingIndex", startingIndex);
+                inputs.put("RequestedCount", requestedCount);
+                inputs.put("SortCriteria", sortCriteria);
 
-        invokeAction("ContentDirectory", "Search", inputs);
+                invokeAction("ContentDirectory", "Search", inputs);
+            } else {
+                logger.debug("Cannot search, cancelled querying the server");
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.debug("Cannot search, previous server query interrupted or timed out");
+        }
     }
 
     @Override
@@ -422,6 +449,11 @@ public class UpnpServerHandler extends UpnpHandler {
                     updateTitleSelection(removeDuplicates(UpnpXMLParser.getEntriesFromXML(value)));
                 } else {
                     updateTitleSelection(new ArrayList<UpnpEntry>());
+                }
+                CompletableFuture<Boolean> browsing = isBrowsing;
+                if (browsing != null) {
+                    browsing.complete(true); // We have received browse or search results, so can launch new browse or
+                                             // search
                 }
                 break;
             case "NumberReturned":

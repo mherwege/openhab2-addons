@@ -862,8 +862,9 @@ public class UpnpRendererHandler extends UpnpHandler {
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
             }
         }
-        if (isSettingURI != null) {
-            isSettingURI.complete(true); // We have received current URI, so can allow play to start
+        CompletableFuture<Boolean> settingURI = isSettingURI;
+        if (settingURI != null) {
+            settingURI.complete(true); // We have received current URI, so can allow play to start
         }
     }
 
