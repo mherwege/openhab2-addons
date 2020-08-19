@@ -266,13 +266,29 @@ public class UpnpRendererHandler extends UpnpHandler {
                 }
             } else {
                 if (config.volume) {
-                    createChannel(UpnpChannelName.channelIdToUpnpChannelName(audioChannel.toLowerCase() + "volume"));
+                    String name = audioChannel.toLowerCase() + "volume";
+                    if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
+                        createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
+                    } else {
+                        createChannel(name, name, "Dimmer", "Vendor specific UPnP volume channel", "SoundVolume", true);
+                    }
                 }
                 if (config.mute) {
-                    createChannel(UpnpChannelName.channelIdToUpnpChannelName(audioChannel.toLowerCase() + "mute"));
+                    String name = audioChannel.toLowerCase() + "mute";
+                    if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
+                        createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
+                    } else {
+                        createChannel(name, name, "Switch", "Vendor specific  UPnP mute channel", "SoundVolume", true);
+                    }
                 }
                 if (config.loudness) {
-                    createChannel(UpnpChannelName.channelIdToUpnpChannelName(audioChannel.toLowerCase() + "loudness"));
+                    String name = audioChannel.toLowerCase() + "loudness";
+                    if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
+                        createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
+                    } else {
+                        createChannel(name, name, "Switch", "Vendor specific  UPnP loudness channel", "SoundVolume",
+                                true);
+                    }
                 }
             }
         }

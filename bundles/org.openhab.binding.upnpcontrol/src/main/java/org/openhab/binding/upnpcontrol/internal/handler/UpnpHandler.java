@@ -164,22 +164,26 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     }
 
     protected void createChannel(@Nullable UpnpChannelName upnpChannelName) {
-        UpnpChannelTypeProvider localChannelTypeProvider = channelTypeProvider;
+        if ((upnpChannelName != null)) {
+            createChannel(upnpChannelName.getChannelId(), upnpChannelName.getLabel(), upnpChannelName.getItemType(),
+                    upnpChannelName.getDescription(), upnpChannelName.getCategory(), upnpChannelName.isAdvanced());
+        }
+    }
 
-        if ((upnpChannelName == null) || (localChannelTypeProvider == null)) {
+    protected void createChannel(String channelId, String label, String itemType, String description, String category,
+            boolean advanced) {
+        UpnpChannelTypeProvider localChannelTypeProvider = channelTypeProvider;
+        if (localChannelTypeProvider == null) {
             return;
         }
 
-        ChannelUID channelUID = new ChannelUID(thing.getUID(), upnpChannelName.getChannelId());
+        ChannelUID channelUID = new ChannelUID(thing.getUID(), channelId);
         ChannelTypeUID channelTypeUID = new ChannelTypeUID(BINDING_ID, channelUID.getId());
-        ChannelType channelType = ChannelTypeBuilder
-                .state(channelTypeUID, upnpChannelName.getLabel(), upnpChannelName.getItemType())
-                .withDescription(upnpChannelName.getDescription()).withCategory(upnpChannelName.getCategory())
-                .isAdvanced(upnpChannelName.isAdvanced()).build();
+        ChannelType channelType = ChannelTypeBuilder.state(channelTypeUID, label, itemType).withDescription(description)
+                .withCategory(category).isAdvanced(advanced).build();
         localChannelTypeProvider.addChannelType(channelType);
-        Channel channel = ChannelBuilder.create(channelUID, upnpChannelName.getItemType()).withType(channelTypeUID)
-                .build();
-        logger.debug("Created channel {}", upnpChannelName.getChannelId());
+        Channel channel = ChannelBuilder.create(channelUID, itemType).withType(channelTypeUID).build();
+        logger.debug("Created channel {}", channelId);
 
         updatedChannels.add(channel);
         updatedChannelUIDs.add(channelUID);
