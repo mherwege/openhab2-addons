@@ -65,6 +65,10 @@ public class UpnpControlBindingConstants {
     public static final String SEARCH = "search";
     public static final String SERVE = "serve";
 
+    // channels that are duplicated on server to control current renderer
+    public static final Set<String> SERVER_CONTROL_CHANNELS = Stream.of(VOLUME, MUTE, CONTROL, STOP)
+            .collect(Collectors.toSet());
+
     // Thing config properties
     public static final String CONFIG_FILTER = "filter";
     public static final String SORT_CRITERIA = "sortcriteria";

@@ -43,6 +43,7 @@ import org.eclipse.smarthome.core.types.CommandDescription;
 import org.eclipse.smarthome.core.types.CommandDescriptionBuilder;
 import org.eclipse.smarthome.core.types.CommandOption;
 import org.eclipse.smarthome.core.types.RefreshType;
+import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.StateDescription;
 import org.eclipse.smarthome.core.types.StateDescriptionFragmentBuilder;
 import org.eclipse.smarthome.core.types.StateOption;
@@ -87,7 +88,7 @@ public class UpnpServerHandler extends UpnpHandler {
     // current entry list in selection
     private List<UpnpEntry> entries = Collections.synchronizedList(new ArrayList<>());
     // store parents in hierarchy separately to be able to move up in directory structure
-    private volatile Map<String, UpnpEntry> parentMap = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, UpnpEntry> parentMap = new ConcurrentHashMap<>();
 
     private UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider;
     private UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider;
@@ -156,23 +157,36 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
+    void updateServerState(ChannelUID channelUID, State state) {
+        updateState(channelUID, state);
+    }
+
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("Handle command {} for channel {} on server {}", command, channelUID, thing.getLabel());
 
         switch (channelUID.getId()) {
             case UPNPRENDERER:
+                UpnpRendererHandler renderer = null;
+                UpnpRendererHandler previousRenderer = currentRendererHandler;
                 if (command instanceof StringType) {
-                    currentRendererHandler = (upnpRenderers.get(((StringType) command).toString()));
+                    renderer = (upnpRenderers.get(((StringType) command).toString()));
+                    currentRendererHandler = renderer;
                     if (config.filter) {
                         // only refresh title list if filtering by renderer capabilities
                         browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                     }
                 } else if (command instanceof RefreshType) {
-                    UpnpRendererHandler renderer = currentRendererHandler;
+                    renderer = currentRendererHandler;
                     if (renderer != null) {
                         updateState(channelUID, StringType.valueOf(renderer.getThing().getLabel()));
                     }
+                }
+                if ((previousRenderer != null) && (renderer != previousRenderer)) {
+                    previousRenderer.unsetServerHandler();
+                }
+                if (renderer != null) {
+                    renderer.setServerHandler(this);
                 }
                 break;
             case CURRENTID:
@@ -237,6 +251,20 @@ public class UpnpServerHandler extends UpnpHandler {
                         logger.debug("Search container {} for {}", searchContainer, criteria);
                         search(searchContainer, criteria, "*", "0", "0", config.sortcriteria);
                     }
+                }
+                break;
+            case VOLUME:
+            case MUTE:
+            case CONTROL:
+            case STOP:
+                // Pass these on to the media renderer thing if one is selected
+                String channelId = channelUID.getId();
+                UpnpRendererHandler handler = currentRendererHandler;
+                Channel channel;
+                if ((handler != null) && (channel = handler.getThing().getChannel(channelUID.getId())) != null) {
+                    handler.handleCommand(channel.getUID(), command);
+                } else {
+                    updateState(channelId, UnDefType.UNDEF);
                 }
                 break;
         }

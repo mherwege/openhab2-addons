@@ -87,6 +87,8 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private volatile UpnpAudioSinkReg audioSinkReg;
 
+    private volatile @Nullable UpnpServerHandler serverHandler;
+
     protected @NonNullByDefault({}) UpnpControlRendererConfiguration config;
     private @Nullable UpnpRenderingControlConfiguration renderingControlConfiguration;
 
@@ -292,6 +294,22 @@ public class UpnpRendererHandler extends UpnpHandler {
                 }
             }
         }
+    }
+
+    /**
+     * Called from server handler for renderer to be able to send back status to server handler
+     *
+     * @param handler
+     */
+    void setServerHandler(UpnpServerHandler handler) {
+        serverHandler = handler;
+    }
+
+    /**
+     * Should be called from server handler when server stops serving this renderer
+     */
+    void unsetServerHandler() {
+        serverHandler = null;
     }
 
     /**
@@ -532,6 +550,16 @@ public class UpnpRendererHandler extends UpnpHandler {
         Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
 
         invokeAction("AVTransport", "GetPositionInfo", inputs);
+    }
+
+    @Override
+    protected void updateState(ChannelUID channelUID, State state) {
+        // override to be able to propagate channel state updates to corresponding channels on the server
+        UpnpServerHandler handler = serverHandler;
+        if ((handler != null) && SERVER_CONTROL_CHANNELS.contains(channelUID.getId())) {
+            handler.updateServerState(channelUID, state);
+        }
+        super.updateState(channelUID, state);
     }
 
     @Override
