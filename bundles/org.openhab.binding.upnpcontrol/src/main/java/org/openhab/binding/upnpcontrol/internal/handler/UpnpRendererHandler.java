@@ -105,6 +105,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile @Nullable UpnpEntry nextEntry = null;
     private volatile boolean playerStopped;
     private volatile boolean playing;
+    private volatile @Nullable ScheduledFuture<?> paused;
     private volatile @Nullable CompletableFuture<Boolean> isSettingURI;
     private volatile int trackDuration = 0;
     private volatile int trackPosition = 0;
@@ -343,6 +344,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             logger.debug("Cannot play, media URI not yet set in the renderer");
+            logger.debug("Error: {}", e);
         }
     }
 
@@ -634,6 +636,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                             if (command == PlayPauseType.PLAY) {
                                 play();
                             } else if (command == PlayPauseType.PAUSE) {
+                                checkPaused();
                                 pause();
                             }
                         } else if (command instanceof NextPreviousType) {
@@ -673,6 +676,26 @@ public class UpnpRendererHandler extends UpnpHandler {
                         break;
                 }
             }
+        }
+    }
+
+    /**
+     * Called before handling a pause CONTROL command. If we do not received PAUSED_PLAYBACK or STOPPED back within
+     * timeout, we will revert to playing state. This takes care of renderers that cannot pause playback.
+     */
+    private void checkPaused() {
+        paused = scheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+    }
+
+    private void resetPaused() {
+        updateState(CONTROL, PlayPauseType.PLAY);
+    }
+
+    private void cancelCheckPaused() {
+        ScheduledFuture<?> future = paused;
+        if (future != null) {
+            future.cancel(true);
+            paused = null;
         }
     }
 
@@ -840,6 +863,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void onValueReceivedTransportState(@Nullable String value) {
         transportState = (value == null) ? "" : value;
         if ("STOPPED".equals(value)) {
+            cancelCheckPaused();
             updateState(CONTROL, PlayPauseType.PAUSE);
             cancelTrackPositionRefresh();
             // playerStopped is true if stop came from openHAB. This allows us to identify if we played to the
@@ -861,6 +885,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             updateState(CONTROL, PlayPauseType.PLAY);
             scheduleTrackPositionRefresh();
         } else if ("PAUSED_PLAYBACK".contentEquals(value)) {
+            cancelCheckPaused();
             updateState(CONTROL, PlayPauseType.PAUSE);
         }
     }
