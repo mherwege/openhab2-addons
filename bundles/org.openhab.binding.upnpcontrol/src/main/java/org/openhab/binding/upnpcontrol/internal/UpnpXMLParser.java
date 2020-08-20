@@ -111,7 +111,7 @@ public class UpnpXMLParser {
                     String channel = attributes == null ? null : attributes.getValue("channel");
                     String val = attributes == null ? null : attributes.getValue("val");
                     if (channel != null && val != null) {
-                        changes.put(qName + channel, val);
+                        changes.put(channel + qName, val);
                     }
                     break;
                 default:
@@ -402,7 +402,7 @@ public class UpnpXMLParser {
     }
 
     public static UpnpRenderingControlConfiguration parseRenderingControlDescription(URL descriptorURL) {
-        RenderingControlHandler handler = new RenderingControlHandler();
+        RenderingControlConfigurationHandler handler = new RenderingControlConfigurationHandler();
         try {
             SAXParserFactory factory = SAXParserFactory.newInstance();
             SAXParser saxParser = factory.newSAXParser();
@@ -414,7 +414,7 @@ public class UpnpXMLParser {
         return handler.getRenderingControlConfiguration();
     }
 
-    private static class RenderingControlHandler extends DefaultHandler {
+    private static class RenderingControlConfigurationHandler extends DefaultHandler {
 
         UpnpRenderingControlConfiguration config = new UpnpRenderingControlConfiguration();
 
@@ -425,7 +425,7 @@ public class UpnpXMLParser {
         private boolean allowedValueTag;
         private boolean maximumTag;
 
-        RenderingControlHandler() {
+        RenderingControlConfigurationHandler() {
             // shouldn't be used outside of this package.
         }
 

@@ -26,6 +26,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +46,7 @@ import org.eclipse.smarthome.core.library.types.QuantityType;
 import org.eclipse.smarthome.core.library.types.RewindFastforwardType;
 import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
+import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
@@ -87,7 +89,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private volatile UpnpAudioSinkReg audioSinkReg;
 
-    private volatile @Nullable UpnpServerHandler serverHandler;
+    private volatile Set<UpnpServerHandler> serverHandlers = ConcurrentHashMap.newKeySet();
 
     protected @NonNullByDefault({}) UpnpControlRendererConfiguration config;
     private @Nullable UpnpRenderingControlConfiguration renderingControlConfiguration;
@@ -223,13 +225,11 @@ public class UpnpRendererHandler extends UpnpHandler {
                 try {
                     UpnpRenderingControlConfiguration config = UpnpXMLParser
                             .parseRenderingControlDescription(new URL(descriptor));
-
                     Set<String> audioChannels = config.audioChannels;
+                    renderingControlConfiguration = config;
                     for (String audioChannel : audioChannels) {
                         createAudioChannels(audioChannel);
                     }
-
-                    renderingControlConfiguration = config;
                 } catch (MalformedURLException e) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                             "Mal formed Rendering Control descriptor URL: " + descriptor);
@@ -294,14 +294,26 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param handler
      */
     void setServerHandler(UpnpServerHandler handler) {
-        serverHandler = handler;
+        logger.debug("Set server handler {} on renderer {}", handler.getThing().getLabel(), thing.getLabel());
+        serverHandlers.add(handler);
     }
 
     /**
      * Should be called from server handler when server stops serving this renderer
      */
     void unsetServerHandler() {
-        serverHandler = null;
+        logger.debug("Unset server handler on renderer {}", thing.getLabel());
+        for (UpnpServerHandler handler : serverHandlers) {
+            Thing serverThing = handler.getThing();
+            Channel serverChannel;
+            for (String channel : SERVER_CONTROL_CHANNELS) {
+                if ((serverChannel = serverThing.getChannel(channel)) != null) {
+                    handler.updateServerState(serverChannel.getUID(), UnDefType.UNDEF);
+                }
+            }
+
+            serverHandlers.remove(handler);
+        }
     }
 
     /**
@@ -547,9 +559,16 @@ public class UpnpRendererHandler extends UpnpHandler {
     @Override
     protected void updateState(ChannelUID channelUID, State state) {
         // override to be able to propagate channel state updates to corresponding channels on the server
-        UpnpServerHandler handler = serverHandler;
-        if ((handler != null) && SERVER_CONTROL_CHANNELS.contains(channelUID.getId())) {
-            handler.updateServerState(channelUID, state);
+        if (SERVER_CONTROL_CHANNELS.contains(channelUID.getId())) {
+            for (UpnpServerHandler handler : serverHandlers) {
+                Thing serverThing = handler.getThing();
+                Channel serverChannel = serverThing.getChannel(channelUID.getId());
+                if (serverChannel != null) {
+                    logger.debug("Update server {} channel {} state from renderer {}", serverThing.getLabel(),
+                            channelUID, thing.getLabel());
+                    handler.updateServerState(serverChannel.getUID(), state);
+                }
+            }
         }
         super.updateState(channelUID, state);
     }
@@ -561,14 +580,12 @@ public class UpnpRendererHandler extends UpnpHandler {
         String transportState;
         String id = channelUID.getId();
         if (command instanceof RefreshType) {
-            if (isLinked(id)) {
-                if (id.endsWith("volume")) {
-                    getVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""));
-                } else if (id.endsWith("mute")) {
-                    getMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""));
-                } else if (id.endsWith("loudness")) {
-                    getLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""));
-                }
+            if (id.endsWith("volume")) {
+                getVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""));
+            } else if (id.endsWith("mute")) {
+                getMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""));
+            } else if (id.endsWith("loudness")) {
+                getLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""));
             } else {
                 switch (id) {
                     case CONTROL:
@@ -595,14 +612,12 @@ public class UpnpRendererHandler extends UpnpHandler {
                 }
             }
         } else {
-            if (isLinked(id)) {
-                if (id.endsWith("volume") && (command instanceof PercentType)) {
-                    setVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""), (PercentType) command);
-                } else if (id.endsWith("mute") && (command instanceof OnOffType)) {
-                    setMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""), (OnOffType) command);
-                } else if (id.endsWith("loudness") && (command instanceof OnOffType)) {
-                    setLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""), (OnOffType) command);
-                }
+            if (id.endsWith("volume") && (command instanceof PercentType)) {
+                setVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""), (PercentType) command);
+            } else if (id.endsWith("mute") && (command instanceof OnOffType)) {
+                setMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""), (OnOffType) command);
+            } else if (id.endsWith("loudness") && (command instanceof OnOffType)) {
+                setLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""), (OnOffType) command);
             } else {
                 switch (id) {
                     case STOP:
@@ -685,12 +700,12 @@ public class UpnpRendererHandler extends UpnpHandler {
             return null;
         } else {
             switch (variable) {
-                case "CurrentMute":
-                    return "Mute" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER);
                 case "CurrentVolume":
-                    return "Volume" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER);
+                    return (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER) + "Volume";
+                case "CurrentMute":
+                    return (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER) + "Mute";
                 case "CurrentLoudness":
-                    return "Loudness" + (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER);
+                    return (inputs.containsKey("Channel") ? inputs.get("Channel") : UPNP_MASTER) + "Loudness";
                 default:
                     return variable;
             }
@@ -715,11 +730,11 @@ public class UpnpRendererHandler extends UpnpHandler {
             return;
         }
 
-        if (variable.startsWith("Volume")) {
+        if (variable.endsWith("Volume")) {
             onValueReceivedVolume(variable, value);
-        } else if (variable.startsWith("Mute")) {
+        } else if (variable.endsWith("Mute")) {
             onValueReceivedMute(variable, value);
-        } else if (variable.startsWith("Loudness")) {
+        } else if (variable.endsWith("Loudness")) {
             onValueReceivedLoudness(variable, value);
         } else {
             switch (variable) {
@@ -780,14 +795,16 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void onValueReceivedMute(String variable, @Nullable String value) {
         if (!((value == null) || (value.isEmpty()))) {
             String upnpChannel = variable.replace("Mute", "mute").replace("Master", "");
-            updateState(upnpChannel, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
+            updateState(upnpChannel,
+                    ("1".equals(value) || "true".equals(value.toLowerCase())) ? OnOffType.ON : OnOffType.OFF);
         }
     }
 
     private void onValueReceivedLoudness(String variable, @Nullable String value) {
         if (!((value == null) || (value.isEmpty()))) {
             String upnpChannel = variable.replace("Mute", "mute").replace("Master", "");
-            updateState(upnpChannel, "1".equals(value) ? OnOffType.ON : OnOffType.OFF);
+            updateState(upnpChannel,
+                    ("1".equals(value) || "true".equals(value.toLowerCase())) ? OnOffType.ON : OnOffType.OFF);
         }
     }
 

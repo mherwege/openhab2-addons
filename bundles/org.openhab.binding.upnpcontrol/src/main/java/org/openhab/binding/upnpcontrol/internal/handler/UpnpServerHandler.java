@@ -176,30 +176,44 @@ public class UpnpServerHandler extends UpnpHandler {
                         // only refresh title list if filtering by renderer capabilities
                         browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                     }
+
+                    Channel channel;
+                    if ((channel = thing.getChannel(VOLUME)) != null) {
+                        handleCommand(channel.getUID(), RefreshType.REFRESH);
+                    }
+                    if ((channel = thing.getChannel(MUTE)) != null) {
+                        handleCommand(channel.getUID(), RefreshType.REFRESH);
+                    }
+                    if ((channel = thing.getChannel(CONTROL)) != null) {
+                        handleCommand(channel.getUID(), RefreshType.REFRESH);
+                    }
                 } else if (command instanceof RefreshType) {
                     renderer = currentRendererHandler;
                     if (renderer != null) {
                         updateState(channelUID, StringType.valueOf(renderer.getThing().getLabel()));
                     }
                 }
-                if ((previousRenderer != null) && (renderer != previousRenderer)) {
-                    previousRenderer.unsetServerHandler();
-                }
-                if (renderer != null) {
-                    renderer.setServerHandler(this);
+
+                if (renderer != previousRenderer) {
+                    if (previousRenderer != null) {
+                        previousRenderer.unsetServerHandler();
+                    }
+                    if (renderer != null) {
+                        renderer.setServerHandler(this);
+                    }
                 }
                 break;
             case CURRENTID:
                 String currentId = "";
                 if (command instanceof StringType) {
                     currentId = String.valueOf(command);
+                    logger.debug("Setting currentId to {}", currentId);
+                    if (!currentId.isEmpty()) {
+                        browse(currentId, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+                    }
                 } else if (command instanceof RefreshType) {
                     currentId = currentEntry.getId();
                     updateState(channelUID, StringType.valueOf(currentId));
-                }
-                logger.debug("Setting currentId to {}", currentId);
-                if (!currentId.isEmpty()) {
-                    browse(currentId, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                 }
             case BROWSE:
                 if (command instanceof StringType) {
@@ -231,6 +245,10 @@ public class UpnpServerHandler extends UpnpHandler {
                         logger.debug("Browse target {}", browseTarget);
                         browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                     }
+                } else if (command instanceof RefreshType) {
+                    synchronized (entries) {
+                        updateState(channelUID, StringType.valueOf(entries.isEmpty() ? UP : entries.get(0).getId()));
+                    }
                 }
                 break;
             case SEARCH:
@@ -251,6 +269,8 @@ public class UpnpServerHandler extends UpnpHandler {
                         logger.debug("Search container {} for {}", searchContainer, criteria);
                         search(searchContainer, criteria, "*", "0", "0", config.sortcriteria);
                     }
+                } else if (command instanceof RefreshType) {
+                    updateState(channelUID, UnDefType.UNDEF);
                 }
                 break;
             case VOLUME:
@@ -263,7 +283,7 @@ public class UpnpServerHandler extends UpnpHandler {
                 Channel channel;
                 if ((handler != null) && (channel = handler.getThing().getChannel(channelUID.getId())) != null) {
                     handler.handleCommand(channel.getUID(), command);
-                } else {
+                } else if (!STOP.equals(channelId)) {
                     updateState(channelId, UnDefType.UNDEF);
                 }
                 break;
