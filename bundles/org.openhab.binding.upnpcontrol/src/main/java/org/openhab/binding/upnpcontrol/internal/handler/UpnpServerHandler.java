@@ -237,6 +237,7 @@ public class UpnpServerHandler extends UpnpHandler {
                             }
                             currentEntry = parentMap.get(browseTarget);
                         }
+                        logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
                         updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
                         logger.debug("Browse target {}", browseTarget);
                         browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
@@ -257,6 +258,7 @@ public class UpnpServerHandler extends UpnpHandler {
                             // No parent found, so make it the root directory
                             searchContainer = DIRECTORY_ROOT;
                         }
+                        logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
                         updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
                         logger.debug("Search container {} for {}", searchContainer, criteria);
                         search(searchContainer, criteria, "*", "0", "0", config.sortcriteria);
@@ -314,8 +316,6 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void updateTitleSelection(List<UpnpEntry> titleList) {
-        logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
-
         // Optionally, filter only items that can be played on the renderer
         logger.debug("Filtering content on server {}: {}", thing.getLabel(), config.filter);
         List<UpnpEntry> resultList = config.filter ? filterEntries(titleList, true) : titleList;
@@ -518,13 +518,10 @@ public class UpnpServerHandler extends UpnpHandler {
     private List<UpnpEntry> removeDuplicates(List<UpnpEntry> list) {
         List<UpnpEntry> newList = new ArrayList<>();
         Set<String> refIdSet = new HashSet<>();
-        final Set<String> idSet = list.stream().map(UpnpEntry::getId).collect(Collectors.toSet());
         list.forEach(entry -> {
             String refId = entry.getRefId();
-            if (refId.isEmpty() || (!idSet.contains(refId)) && !refIdSet.contains(refId)) {
+            if (refId.isEmpty() || !refIdSet.contains(refId)) {
                 newList.add(entry);
-            }
-            if (!refId.isEmpty()) {
                 refIdSet.add(refId);
             }
         });
