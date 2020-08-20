@@ -215,6 +215,7 @@ public class UpnpServerHandler extends UpnpHandler {
                     currentId = currentEntry.getId();
                     updateState(channelUID, StringType.valueOf(currentId));
                 }
+                break;
             case BROWSE:
                 if (command instanceof StringType) {
                     String browseTarget = command.toString();
