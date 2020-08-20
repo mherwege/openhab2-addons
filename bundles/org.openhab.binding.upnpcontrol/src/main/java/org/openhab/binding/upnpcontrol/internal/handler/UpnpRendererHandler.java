@@ -183,7 +183,6 @@ public class UpnpRendererHandler extends UpnpHandler {
         serviceSubscriptions.add("RenderingControl");
 
         this.audioSinkReg = audioSinkReg;
-
     }
 
     @Override
