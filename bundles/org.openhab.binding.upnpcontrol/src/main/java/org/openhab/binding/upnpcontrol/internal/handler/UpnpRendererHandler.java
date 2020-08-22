@@ -222,7 +222,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                     return;
                 }
 
-                String descriptor = thing.getProperties().get("RenderingControl");
+                String descriptor = thing.getProperties().get("RenderingControlDescrURL");
                 try {
                     UpnpRenderingControlConfiguration config = UpnpXMLParser
                             .parseRenderingControlDescription(new URL(descriptor));

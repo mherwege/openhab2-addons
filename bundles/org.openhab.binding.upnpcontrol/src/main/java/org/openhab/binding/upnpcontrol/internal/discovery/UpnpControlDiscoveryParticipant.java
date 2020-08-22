@@ -14,6 +14,8 @@ package org.openhab.binding.upnpcontrol.internal.discovery;
 
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
+import java.net.URI;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -54,12 +56,32 @@ public class UpnpControlDiscoveryParticipant implements UpnpDiscoveryParticipant
             String label = device.getDetails().getFriendlyName().isEmpty() ? device.getDisplayString()
                     : device.getDetails().getFriendlyName();
             Map<String, Object> properties = new HashMap<>();
-            properties.put("ipAddress", device.getIdentity().getDescriptorURL().getHost());
+            URL descriptorURL = device.getIdentity().getDescriptorURL();
+            properties.put("ipAddress", descriptorURL.getHost());
             properties.put("udn", device.getIdentity().getUdn().getIdentifierString());
-            String descriptorURL = device.getIdentity().getDescriptorURL().toString();
+            properties.put("deviceDescrURL", descriptorURL.toString());
+            URL baseURL = device.getDetails().getBaseURL();
+            String baseURLString;
+            if (baseURL != null) {
+                baseURLString = baseURL.toString();
+            } else {
+                String protocol = descriptorURL.getProtocol();
+                String host = descriptorURL.getHost();
+                int port = descriptorURL.getPort();
+                if (port == -1) {
+                    baseURLString = String.format("%s://%s", protocol, host);
+                } else {
+                    baseURLString = String.format("%s://%s:%d", protocol, host, port);
+                }
+            }
             for (RemoteService service : device.getServices()) {
                 String serviceType = service.getServiceType().getType();
-                properties.put(serviceType, descriptorURL + service.getDescriptorURI());
+                URI serviceDescriptorURI = service.getDescriptorURI();
+                String descrURIString = serviceDescriptorURI.toString();
+                if (!descrURIString.startsWith("/")) {
+                    descrURIString = "/" + descrURIString;
+                }
+                properties.put(serviceType + "DescrURL", baseURLString + descrURIString);
             }
             result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withProperties(properties)
                     .withRepresentationProperty("udn").build();

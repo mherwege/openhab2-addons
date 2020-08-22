@@ -176,17 +176,6 @@ public class UpnpServerHandler extends UpnpHandler {
                         // only refresh title list if filtering by renderer capabilities
                         browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                     }
-
-                    Channel channel;
-                    if ((channel = thing.getChannel(VOLUME)) != null) {
-                        handleCommand(channel.getUID(), RefreshType.REFRESH);
-                    }
-                    if ((channel = thing.getChannel(MUTE)) != null) {
-                        handleCommand(channel.getUID(), RefreshType.REFRESH);
-                    }
-                    if ((channel = thing.getChannel(CONTROL)) != null) {
-                        handleCommand(channel.getUID(), RefreshType.REFRESH);
-                    }
                 }
 
                 if (renderer != previousRenderer) {
@@ -195,6 +184,17 @@ public class UpnpServerHandler extends UpnpHandler {
                     }
                     if (renderer != null) {
                         renderer.setServerHandler(this);
+
+                        Channel channel;
+                        if ((channel = thing.getChannel(VOLUME)) != null) {
+                            handleCommand(channel.getUID(), RefreshType.REFRESH);
+                        }
+                        if ((channel = thing.getChannel(MUTE)) != null) {
+                            handleCommand(channel.getUID(), RefreshType.REFRESH);
+                        }
+                        if ((channel = thing.getChannel(CONTROL)) != null) {
+                            handleCommand(channel.getUID(), RefreshType.REFRESH);
+                        }
                     }
                 }
                 break;
@@ -464,7 +464,7 @@ public class UpnpServerHandler extends UpnpHandler {
 
     @Override
     public void onStatusChanged(boolean status) {
-        logger.debug("Server status changed to {}", status);
+        logger.debug("Server status of {} changed to {}", thing.getLabel(), status);
         if (status) {
             initJob();
         } else {
