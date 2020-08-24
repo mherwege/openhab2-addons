@@ -16,6 +16,7 @@ import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstan
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -109,6 +110,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile @Nullable CompletableFuture<Boolean> isSettingURI;
     private volatile int trackDuration = 0;
     private volatile int trackPosition = 0;
+    private volatile long expectedTrackend = 0;
     private volatile @Nullable ScheduledFuture<?> trackPositionRefresh;
 
     /**
@@ -878,7 +880,12 @@ public class UpnpRendererHandler extends UpnpHandler {
                 // Only go to next for first STOP command, then wait until we received PLAYING before moving
                 // to next (avoids issues with renderers sending multiple stop states)
                 playing = false;
-                serveNext();
+                if (Instant.now().toEpochMilli() >= expectedTrackend) {
+                    // If we are receiving track duration info, we know when the track is expected to end. If we
+                    // received STOP before track end, and it is not coming from openHAB, it must have been stopped from
+                    // the renderer directly, and we do not want to play the next entry.
+                    serveNext();
+                }
             } else {
                 currentEntry = nextEntry; // Try to get the metadata for the next entry if controlled by an
                                           // external control point
@@ -929,6 +936,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                     (n, m) -> n * 60 + m);
             updateState(TRACK_DURATION, new QuantityType<>(trackDuration, SmartHomeUnits.SECOND));
         }
+        setExpectedTrackend();
     }
 
     private void onValueReceivedRelTime(@Nullable String value) {
@@ -943,6 +951,12 @@ public class UpnpRendererHandler extends UpnpHandler {
             int relPosition = (trackDuration != 0) ? trackPosition * 100 / trackDuration : 0;
             updateState(REL_TRACK_POSITION, new PercentType(relPosition));
         }
+        setExpectedTrackend();
+    }
+
+    protected void setExpectedTrackend() {
+        expectedTrackend = Instant.now().toEpochMilli() + (trackDuration - trackPosition) * 1000
+                - UPNP_RESPONSE_TIMEOUT_MILLIS;
     }
 
     @Override
@@ -1103,6 +1117,9 @@ public class UpnpRendererHandler extends UpnpHandler {
                 return;
             }
             setCurrentURI(res, UpnpXMLParser.compileMetadataString(entry));
+            trackDuration = 0;
+            trackPosition = 0;
+            expectedTrackend = 0;
             play();
 
             // make the next entry available to renderers that support it
@@ -1119,10 +1136,13 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void scheduleTrackPositionRefresh() {
         cancelTrackPositionRefresh();
         if (!(isLinked(TRACK_POSITION) || isLinked(REL_TRACK_POSITION))) {
-            return;
-        }
-        if (trackPositionRefresh == null) {
-            trackPositionRefresh = upnpScheduler.scheduleWithFixedDelay(this::getPositionInfo, 1, 1, TimeUnit.SECONDS);
+            // only get it once, so we can use the track end to correctly identify STOP pressed directly on renderer
+            getPositionInfo();
+        } else {
+            if (trackPositionRefresh == null) {
+                trackPositionRefresh = upnpScheduler.scheduleWithFixedDelay(this::getPositionInfo, 1, 1,
+                        TimeUnit.SECONDS);
+            }
         }
     }
 
