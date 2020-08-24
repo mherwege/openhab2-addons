@@ -684,7 +684,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      * timeout, we will revert to playing state. This takes care of renderers that cannot pause playback.
      */
     private void checkPaused() {
-        paused = scheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        paused = upnpScheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     private void resetPaused() {
@@ -832,32 +832,37 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void onValueReceivedLastChange(@Nullable String value, @Nullable String service) {
-        // pre-process some variables, eg XML processing
-        if (!((value == null) || value.isEmpty())) {
-            if ("AVTransport".equals(service)) {
-                Map<String, String> parsedValues = UpnpXMLParser.getAVTransportFromXML(value);
-                for (Map.Entry<String, String> entrySet : parsedValues.entrySet()) {
-                    // Update the transport state after the update of the media information
-                    // to not break the notification mechanism
-                    if (!"TransportState".equals(entrySet.getKey())) {
-                        onValueReceived(entrySet.getKey(), entrySet.getValue(), service);
+        // This is returned from a GENA subscription. The jupnp library does not allow receiving new GENA subscription
+        // messages as long as this thread has not finished. As we may trigger long running processes based on this
+        // result, we run it in a separate thread.
+        upnpScheduler.submit(() -> {
+            // pre-process some variables, eg XML processing
+            if (!((value == null) || value.isEmpty())) {
+                if ("AVTransport".equals(service)) {
+                    Map<String, String> parsedValues = UpnpXMLParser.getAVTransportFromXML(value);
+                    for (Map.Entry<String, String> entrySet : parsedValues.entrySet()) {
+                        // Update the transport state after the update of the media information
+                        // to not break the notification mechanism
+                        if (!"TransportState".equals(entrySet.getKey())) {
+                            onValueReceived(entrySet.getKey(), entrySet.getValue(), service);
+                        }
+                        if ("AVTransportURI".equals(entrySet.getKey())) {
+                            onValueReceived("CurrentTrackURI", entrySet.getValue(), service);
+                        } else if ("AVTransportURIMetaData".equals(entrySet.getKey())) {
+                            onValueReceived("CurrentTrackMetaData", entrySet.getValue(), service);
+                        }
                     }
-                    if ("AVTransportURI".equals(entrySet.getKey())) {
-                        onValueReceived("CurrentTrackURI", entrySet.getValue(), service);
-                    } else if ("AVTransportURIMetaData".equals(entrySet.getKey())) {
-                        onValueReceived("CurrentTrackMetaData", entrySet.getValue(), service);
+                    if (parsedValues.containsKey("TransportState")) {
+                        onValueReceived("TransportState", parsedValues.get("TransportState"), service);
                     }
-                }
-                if (parsedValues.containsKey("TransportState")) {
-                    onValueReceived("TransportState", parsedValues.get("TransportState"), service);
-                }
-            } else if ("RenderingControl".equals(service)) {
-                Map<String, @Nullable String> parsedValues = UpnpXMLParser.getRenderingControlFromXML(value);
-                for (String parsedValue : parsedValues.keySet()) {
-                    onValueReceived(parsedValue, parsedValues.get(parsedValue), "RenderingControl");
+                } else if ("RenderingControl".equals(service)) {
+                    Map<String, @Nullable String> parsedValues = UpnpXMLParser.getRenderingControlFromXML(value);
+                    for (String parsedValue : parsedValues.keySet()) {
+                        onValueReceived(parsedValue, parsedValues.get(parsedValue), "RenderingControl");
+                    }
                 }
             }
-        }
+        });
     }
 
     private void onValueReceivedTransportState(@Nullable String value) {
@@ -1117,7 +1122,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             return;
         }
         if (trackPositionRefresh == null) {
-            trackPositionRefresh = scheduler.scheduleWithFixedDelay(this::getPositionInfo, 1, 1, TimeUnit.SECONDS);
+            trackPositionRefresh = upnpScheduler.scheduleWithFixedDelay(this::getPositionInfo, 1, 1, TimeUnit.SECONDS);
         }
     }
 

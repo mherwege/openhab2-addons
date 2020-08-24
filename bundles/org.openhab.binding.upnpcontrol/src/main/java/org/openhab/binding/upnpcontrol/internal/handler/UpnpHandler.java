@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.eclipse.smarthome.core.common.ThreadPoolManager;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
@@ -63,6 +65,9 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
 
     protected UpnpIOService service;
 
+    // The handlers can potentially create an important number of tasks, therefore put them in a separate thread pool
+    protected static final ScheduledExecutorService upnpScheduler = ThreadPoolManager.getScheduledPool("upnpcontrol");
+
     private boolean updateChannels;
     private final List<Channel> updatedChannels = new ArrayList<>();
     private final List<ChannelUID> updatedChannelUIDs = new ArrayList<>();
@@ -72,6 +77,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected volatile int rcsId = 0; // UPnP Rendering Control Id
 
     protected @NonNullByDefault({}) UpnpControlConfiguration config;
+
+    protected final Object invokeActionLock = new Object();
 
     protected @Nullable ScheduledFuture<?> pollingJob;
     protected final Object jobLock = new Object();
@@ -142,9 +149,9 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected void initDevice() {
         if ((config.udn != null) && !config.udn.isEmpty()) {
             if (config.refresh == 0) {
-                scheduler.submit(this::initJob);
+                upnpScheduler.submit(this::initJob);
             } else {
-                pollingJob = scheduler.scheduleWithFixedDelay(this::initJob, 0, config.refresh, TimeUnit.SECONDS);
+                pollingJob = upnpScheduler.scheduleWithFixedDelay(this::initJob, 0, config.refresh, TimeUnit.SECONDS);
             }
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -339,14 +346,17 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      * @param inputs
      */
     protected void invokeAction(String serviceId, String actionId, Map<String, String> inputs) {
-        scheduler.submit(() -> {
-            Map<String, String> result = service.invokeAction(this, serviceId, actionId, inputs);
-            if (logger.isDebugEnabled() && !"GetPositionInfo".equals(actionId)) {
-                // don't log position info refresh every second
-                logger.debug("Upnp device {} invoke upnp action {} on service {} with inputs {}", thing.getLabel(),
-                        actionId, serviceId, inputs);
-                logger.debug("Upnp device {} invoke upnp action {} on service {} reply {}", thing.getLabel(), actionId,
-                        serviceId, result);
+        upnpScheduler.submit(() -> {
+            Map<String, String> result;
+            synchronized (invokeActionLock) {
+                result = service.invokeAction(this, serviceId, actionId, inputs);
+                if (logger.isDebugEnabled() && !"GetPositionInfo".equals(actionId)) {
+                    // don't log position info refresh every second
+                    logger.debug("Upnp device {} invoke upnp action {} on service {} with inputs {}", thing.getLabel(),
+                            actionId, serviceId, inputs);
+                    logger.debug("Upnp device {} invoke upnp action {} on service {} reply {}", thing.getLabel(),
+                            actionId, serviceId, result);
+                }
             }
             for (String variable : result.keySet()) {
                 String newVariable = preProcessValueReceived(inputs, variable, result.get(variable), serviceId);
@@ -454,7 +464,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         for (String subscription : serviceSubscriptions) {
             addSubscription(subscription, SUBSCRIPTION_DURATION_SECONDS);
         }
-        subscriptionRefreshJob = scheduler.scheduleWithFixedDelay(subscriptionRefresh,
+        subscriptionRefreshJob = upnpScheduler.scheduleWithFixedDelay(subscriptionRefresh,
                 SUBSCRIPTION_DURATION_SECONDS / 2, SUBSCRIPTION_DURATION_SECONDS / 2, TimeUnit.SECONDS);
 
         upnpSubscribed = true;
