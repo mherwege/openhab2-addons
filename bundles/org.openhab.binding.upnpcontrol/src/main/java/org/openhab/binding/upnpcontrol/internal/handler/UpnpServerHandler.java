@@ -178,7 +178,7 @@ public class UpnpServerHandler extends UpnpHandler {
                     }
                 }
 
-                if (renderer != previousRenderer) {
+                if ((renderer != null) && !renderer.equals(previousRenderer)) {
                     if (previousRenderer != null) {
                         previousRenderer.unsetServerHandler();
                     }

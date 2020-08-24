@@ -66,7 +66,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected UpnpIOService service;
 
     // The handlers can potentially create an important number of tasks, therefore put them in a separate thread pool
-    protected static final ScheduledExecutorService upnpScheduler = ThreadPoolManager.getScheduledPool("upnpcontrol");
+    protected static final ScheduledExecutorService UPNP_SCHEDULER = ThreadPoolManager.getScheduledPool("upnpcontrol");
 
     private boolean updateChannels;
     private final List<Channel> updatedChannels = new ArrayList<>();
@@ -147,11 +147,12 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      * To be called from implementing classes when initializing the device, to start initialization refresh
      */
     protected void initDevice() {
-        if ((config.udn != null) && !config.udn.isEmpty()) {
+        String udn = config.udn;
+        if ((udn != null) && !udn.isEmpty()) {
             if (config.refresh == 0) {
-                upnpScheduler.submit(this::initJob);
+                UPNP_SCHEDULER.submit(this::initJob);
             } else {
-                pollingJob = upnpScheduler.scheduleWithFixedDelay(this::initJob, 0, config.refresh, TimeUnit.SECONDS);
+                pollingJob = UPNP_SCHEDULER.scheduleWithFixedDelay(this::initJob, 0, config.refresh, TimeUnit.SECONDS);
             }
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -346,7 +347,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      * @param inputs
      */
     protected void invokeAction(String serviceId, String actionId, Map<String, String> inputs) {
-        upnpScheduler.submit(() -> {
+        UPNP_SCHEDULER.submit(() -> {
             Map<String, String> result;
             synchronized (invokeActionLock) {
                 result = service.invokeAction(this, serviceId, actionId, inputs);
@@ -434,7 +435,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      *
      * @param value
      */
-    abstract protected void updateProtocolInfo(String value);
+    protected abstract void updateProtocolInfo(String value);
 
     /**
      * Subscribe this handler as a participant to a GENA subscription.
@@ -464,7 +465,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         for (String subscription : serviceSubscriptions) {
             addSubscription(subscription, SUBSCRIPTION_DURATION_SECONDS);
         }
-        subscriptionRefreshJob = upnpScheduler.scheduleWithFixedDelay(subscriptionRefresh,
+        subscriptionRefreshJob = UPNP_SCHEDULER.scheduleWithFixedDelay(subscriptionRefresh,
                 SUBSCRIPTION_DURATION_SECONDS / 2, SUBSCRIPTION_DURATION_SECONDS / 2, TimeUnit.SECONDS);
 
         upnpSubscribed = true;

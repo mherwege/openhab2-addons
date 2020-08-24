@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -62,6 +61,7 @@ import org.openhab.binding.upnpcontrol.internal.UpnpAudioSink;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
+import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
 import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlRendererConfiguration;
 import org.openhab.binding.upnpcontrol.internal.services.UpnpRenderingControlConfiguration;
@@ -100,8 +100,9 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile PercentType soundVolume = new PercentType();
     private volatile List<String> sink = new ArrayList<>();
 
-    private volatile ArrayList<UpnpEntry> currentQueue = new ArrayList<>();
-    private volatile UpnpIterator<UpnpEntry> queueIterator = new UpnpIterator<>(currentQueue.listIterator());
+    private volatile UpnpEntryQueue currentQueue = new UpnpEntryQueue();
+    private boolean repeat = false;
+    private boolean shuffle = false;
     private volatile @Nullable UpnpEntry currentEntry = null;
     private volatile @Nullable UpnpEntry nextEntry = null;
     private volatile boolean playerStopped;
@@ -112,74 +113,6 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile int trackPosition = 0;
     private volatile long expectedTrackend = 0;
     private volatile @Nullable ScheduledFuture<?> trackPositionRefresh;
-
-    /**
-     * The {@link ListIterator} class does not keep a cursor position and therefore will not give the previous element
-     * when next was called before, or give the next element when previous was called before. This iterator will always
-     * go to previous/next.
-     */
-    private static class UpnpIterator<T> {
-        private final ListIterator<T> listIterator;
-
-        private boolean nextWasCalled = false;
-        private boolean previousWasCalled = false;
-
-        public UpnpIterator(ListIterator<T> listIterator) {
-            this.listIterator = listIterator;
-        }
-
-        public T next() {
-            if (previousWasCalled) {
-                previousWasCalled = false;
-                listIterator.next();
-            }
-            nextWasCalled = true;
-            return listIterator.next();
-        }
-
-        public T previous() {
-            if (nextWasCalled) {
-                nextWasCalled = false;
-                listIterator.previous();
-            }
-            previousWasCalled = true;
-            return listIterator.previous();
-        }
-
-        public boolean hasNext() {
-            if (previousWasCalled) {
-                return true;
-            } else {
-                return listIterator.hasNext();
-            }
-        }
-
-        public boolean hasPrevious() {
-            if (previousIndex() < 0) {
-                return false;
-            } else if (nextWasCalled) {
-                return true;
-            } else {
-                return listIterator.hasPrevious();
-            }
-        }
-
-        public int nextIndex() {
-            if (previousWasCalled) {
-                return listIterator.nextIndex() + 1;
-            } else {
-                return listIterator.nextIndex();
-            }
-        }
-
-        public int previousIndex() {
-            if (nextWasCalled) {
-                return listIterator.previousIndex() - 1;
-            } else {
-                return listIterator.previousIndex();
-            }
-        }
-    }
 
     public UpnpRendererHandler(Thing thing, UpnpIOService upnpIOService, UpnpAudioSinkReg audioSinkReg) {
         super(thing, upnpIOService);
@@ -345,8 +278,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 logger.debug("Cannot play, cancelled setting URI in the renderer");
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Cannot play, media URI not yet set in the renderer");
-            logger.debug("Error: {}", e);
+            logger.debug("Timeout exception, cannot play, media URI not yet set in the renderer");
         }
     }
 
@@ -604,6 +536,12 @@ public class UpnpRendererHandler extends UpnpHandler {
                         }
                         updateState(channelUID, newState);
                         break;
+                    case REPEAT:
+                        updateState(channelUID, OnOffType.from(repeat));
+                        break;
+                    case SHUFFLE:
+                        updateState(channelUID, OnOffType.from(shuffle));
+                        break;
                     case TRACK_POSITION:
                         updateState(channelUID, new QuantityType<>(trackPosition, SmartHomeUnits.SECOND));
                         break;
@@ -659,6 +597,14 @@ public class UpnpRendererHandler extends UpnpHandler {
                             seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
                         }
                         break;
+                    case REPEAT:
+                        repeat = (command == OnOffType.ON);
+                        currentQueue.setRepeat(repeat);
+                        break;
+                    case SHUFFLE:
+                        shuffle = (command == OnOffType.ON);
+                        currentQueue.setShuffle(shuffle);
+                        break;
                     case TRACK_POSITION:
                         if (command instanceof QuantityType<?>) {
                             QuantityType<?> position = ((QuantityType<?>) command).toUnit(SmartHomeUnits.SECOND);
@@ -686,7 +632,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      * timeout, we will revert to playing state. This takes care of renderers that cannot pause playback.
      */
     private void checkPaused() {
-        paused = upnpScheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        paused = UPNP_SCHEDULER.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     private void resetPaused() {
@@ -837,7 +783,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         // This is returned from a GENA subscription. The jupnp library does not allow receiving new GENA subscription
         // messages as long as this thread has not finished. As we may trigger long running processes based on this
         // result, we run it in a separate thread.
-        upnpScheduler.submit(() -> {
+        UPNP_SCHEDULER.submit(() -> {
             // pre-process some variables, eg XML processing
             if (!((value == null) || value.isEmpty())) {
                 if ("AVTransport".equals(service)) {
@@ -904,17 +850,18 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private void onValueReceivedCurrentTrackURI(@Nullable String value) {
         UpnpEntry current = currentEntry;
-        if (queueIterator.hasNext() && (current != null) && !current.getRes().equals(value)
-                && currentQueue.get(queueIterator.nextIndex()).getRes().equals(value)) {
+        UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
+        if ((current != null) && (next != null) && !current.getRes().equals(value) && next.getRes().equals(value)) {
             // Renderer advanced to next entry independent of openHAB UPnP control point.
             // Advance in the queue to keep proper position status.
             // Make the next entry available to renderers that support it.
-            updateMetaDataState(currentQueue.get(queueIterator.nextIndex()));
-            logger.trace("Renderer moved from '{}' to next entry '{}' in queue", currentEntry,
-                    currentQueue.get(queueIterator.nextIndex()));
-            currentEntry = queueIterator.next();
-            if (queueIterator.hasNext()) {
-                UpnpEntry next = currentQueue.get(queueIterator.nextIndex());
+            updateMetaDataState(next);
+            logger.trace("Renderer moved from '{}' to next entry '{}' in queue", current, next);
+            currentEntry = currentQueue.next();
+
+            // look one further to get next entry for next URI
+            next = currentQueue.get(currentQueue.nextIndex());
+            if (next != null) {
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
             }
         }
@@ -1032,18 +979,19 @@ public class UpnpRendererHandler extends UpnpHandler {
      */
     public void registerQueue(ArrayList<UpnpEntry> queue) {
         logger.debug("Registering queue on renderer {}", thing.getLabel());
-        currentQueue = queue;
-        queueIterator = new UpnpIterator<>(currentQueue.listIterator());
+        currentQueue = new UpnpEntryQueue(queue);
+        currentQueue.setRepeat(repeat);
+        currentQueue.setShuffle(shuffle);
         if (playing) {
-            if (queueIterator.hasNext()) {
+            UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
+            if (next != null) {
                 // make the next entry available to renderers that support it
                 logger.trace("Still playing, set new queue as next entry");
-                UpnpEntry next = currentQueue.get(queueIterator.nextIndex());
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
             }
         } else {
-            if (queueIterator.hasNext()) {
-                UpnpEntry entry = queueIterator.next();
+            UpnpEntry entry = currentQueue.next();
+            if (entry != null) {
                 updateMetaDataState(entry);
                 setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
                 currentEntry = entry;
@@ -1057,23 +1005,13 @@ public class UpnpRendererHandler extends UpnpHandler {
      * Move to next position in queue and start playing.
      */
     private void serveNext() {
-        if (queueIterator.hasNext()) {
-            currentEntry = queueIterator.next();
+        if (currentQueue.hasNext()) {
+            currentEntry = currentQueue.next();
             logger.debug("Serve next media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
             serve();
         } else {
             logger.debug("Cannot serve next, end of queue on renderer {}", thing.getLabel());
-            cancelTrackPositionRefresh();
-            stop();
-            queueIterator = new UpnpIterator<>(currentQueue.listIterator()); // reset to beginning of queue
-            if (currentQueue.isEmpty()) {
-                clearCurrentEntry();
-            } else {
-                updateMetaDataState(currentQueue.get(queueIterator.nextIndex()));
-                UpnpEntry entry = queueIterator.next();
-                setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
-                currentEntry = entry;
-            }
+            resetToStartQueue();
         }
     }
 
@@ -1081,23 +1019,27 @@ public class UpnpRendererHandler extends UpnpHandler {
      * Move to previous position in queue and start playing.
      */
     private void servePrevious() {
-        if (queueIterator.hasPrevious()) {
-            currentEntry = queueIterator.previous();
+        if (currentQueue.hasPrevious()) {
+            currentEntry = currentQueue.previous();
             logger.debug("Serve previous media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
             serve();
         } else {
             logger.debug("Cannot serve previous, already at start of queue on renderer {}", thing.getLabel());
-            cancelTrackPositionRefresh();
-            stop();
-            queueIterator = new UpnpIterator<>(currentQueue.listIterator()); // reset to beginning of queue
-            if (currentQueue.isEmpty()) {
-                clearCurrentEntry();
-            } else {
-                updateMetaDataState(currentQueue.get(queueIterator.nextIndex()));
-                UpnpEntry entry = queueIterator.next();
-                setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
-                currentEntry = entry;
-            }
+            resetToStartQueue();
+        }
+    }
+
+    private void resetToStartQueue() {
+        cancelTrackPositionRefresh();
+        stop();
+        currentQueue.resetIndex(); // reset to beginning of queue
+        UpnpEntry entry = currentQueue.next();
+        if (entry != null) {
+            updateMetaDataState(entry);
+            setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
+            currentEntry = entry;
+        } else {
+            clearCurrentEntry();
         }
     }
 
@@ -1123,8 +1065,8 @@ public class UpnpRendererHandler extends UpnpHandler {
             play();
 
             // make the next entry available to renderers that support it
-            if (queueIterator.hasNext()) {
-                UpnpEntry next = currentQueue.get(queueIterator.nextIndex());
+            UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
+            if (next != null) {
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
             }
         }
@@ -1140,7 +1082,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             getPositionInfo();
         } else {
             if (trackPositionRefresh == null) {
-                trackPositionRefresh = upnpScheduler.scheduleWithFixedDelay(this::getPositionInfo, 1, 1,
+                trackPositionRefresh = UPNP_SCHEDULER.scheduleWithFixedDelay(this::getPositionInfo, 1, 1,
                         TimeUnit.SECONDS);
             }
         }

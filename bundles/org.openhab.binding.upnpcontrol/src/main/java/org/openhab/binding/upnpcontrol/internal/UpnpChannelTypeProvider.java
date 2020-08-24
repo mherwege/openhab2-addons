@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
@@ -52,7 +51,7 @@ public class UpnpChannelTypeProvider implements ChannelTypeProvider, ThingHandle
     }
 
     @Override
-    public Collection<@NonNull ChannelType> getChannelTypes(@Nullable Locale locale) {
+    public Collection<ChannelType> getChannelTypes(@Nullable Locale locale) {
         return Collections.unmodifiableCollection(map.values());
     }
 

@@ -79,6 +79,9 @@ The result (media and containers) will be available in the `browse` command opti
 The `currentid` channel will be put to the parent of the first entry in the result list.
 All media in the search result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
 
+A number of convenience channels replicate the basic control channels from the `upnprenderer` thing for the currently selected renderer on the `upnprenderer` channel.
+These channels are `volume`, `mute` and `control`.
+
 The `upnprenderer` has the following default channels:
 
 | Channel Type ID    | Item Type   | Access Mode | Description                                        |
@@ -87,6 +90,8 @@ The `upnprenderer` has the following default channels:
 | `mute`             | Switch      | RW          | playback master mute                               |
 | `control`          | Player      | RW          | play, pause, next, previous, fast forward, rewind  |
 | `stop`             | Switch      | RW          | stop media playback                                |
+| `repeat`           | Switch      | RW          | continuous play of media queue, restart at end     |
+| `shuffle`          | Switch      | RW          | continuous random play of media queue              |
 | `title`            | String      | R           | media title                                        |
 | `album`            | String      | R           | media album                                        |
 | `albumart`         | Image       | R           | image for media album                              |
@@ -148,6 +153,8 @@ Dimmer LeftVolume "Volume [%.1f %%]" <soundvolume>     (MediaRenderer) {channel=
 Dimmer RightVolume "Volume [%.1f %%]" <soundvolume>    (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:rfvolume"}
 Player Controls  "Controller"                          (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:control"}
 Switch Stop      "Stop"                                (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:stop"}
+Switch Repeat    "Repeat"                              (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:repeat"}
+Switch Shuffle   "Shuffle"                             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:shuffle"}
 String Title     "Now playing [%s]" <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:title"}
 String Album     "Album"            <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:album"}
 Image AlbumArt   "Album Art"                           (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:albumart"}
@@ -176,7 +183,9 @@ Slider  item=LeftVolume
 Slider  item=RightVolume
 Default item=Controls
 Switch  item=Stop mappings=[ON="STOP"]
-Text    item=Title     
+Switch  item=Repeat
+Switch  item=Shuffle
+Text    item=Title 
 Text    item=Album
 Default item=AlbumArt
 Text    item=Creator

@@ -47,6 +47,8 @@ public class UpnpControlBindingConstants {
     public static final String MUTE = "mute";
     public static final String CONTROL = "control";
     public static final String STOP = "stop";
+    public static final String REPEAT = "repeat";
+    public static final String SHUFFLE = "shuffle";
     public static final String TITLE = "title";
     public static final String ALBUM = "album";
     public static final String ALBUM_ART = "albumart";

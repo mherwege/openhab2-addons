@@ -15,6 +15,9 @@
 			<channel id="control" typeId="system.media-control"/>
 			<channel id="stop" typeId="stop"/>
 
+			<channel id="repeat" typeId="repeat"/>
+			<channel id="shuffle" typeId="shuffle"/>
+
 			<channel id="title" typeId="system.media-title"/>
 			<channel id="album" typeId="album"/>
 			<channel id="albumart" typeId="albumart"/>
@@ -93,6 +96,16 @@
 		<label>Stop</label>
 		<description>Stop the player</description>
 		<autoUpdatePolicy>veto</autoUpdatePolicy>
+	</channel-type>
+	<channel-type id="repeat">
+		<item-type>Switch</item-type>
+		<label>Repeat</label>
+		<description>Repeat the selection</description>
+	</channel-type>
+	<channel-type id="shuffle">
+		<item-type>Switch</item-type>
+		<label>Shuffle</label>
+		<description>Random shuffle the selection</description>
 	</channel-type>
 	<channel-type id="album">
 		<item-type>String</item-type>
