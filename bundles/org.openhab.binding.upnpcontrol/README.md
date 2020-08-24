@@ -75,18 +75,16 @@ Search criteria are defined in UPnP search criteria format.
 Examples: `dc:title contains "song"`, `dc:creator contains "SpringSteen"`, `unp:class = "object.item.audioItem"`, `upnp:album contains "Born in"`.
 The search starts at the value of the `currentid` channel and searches down from there.
 When no `currentid` is selected, the search starts at the top.
+The result (media and containers) will be available in the `browse` command option list.
+The `currentid` channel will be put to the parent of the first entry in the result list.
 All media in the search result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
 
-The `upnprenderer` has the following channels:
+The `upnprenderer` has the following default channels:
 
 | Channel Type ID    | Item Type   | Access Mode | Description                                        |
 |--------------------|-------------|-------------|----------------------------------------------------|
 | `volume`           | Dimmer      | RW          | playback master volume                             |
 | `mute`             | Switch      | RW          | playback master mute                               |
-| `lfvolume`         | Dimmer      | RW          | playback front left volume                         |
-| `lfmute`           | Switch      | RW          | playback front left mute                           |
-| `rfvolume`         | Dimmer      | RW          | playback front right volume                        |
-| `rfmute`           | Switch      | RW          | playback front right mute                          |
 | `control`          | Player      | RW          | play, pause, next, previous, fast forward, rewind  |
 | `stop`             | Switch      | RW          | stop media playback                                |
 | `title`            | String      | R           | media title                                        |
@@ -100,6 +98,17 @@ The `upnprenderer` has the following channels:
 | `trackduration`    | Number:Time | R           | track duration of current track in album           |
 | `trackposition`    | Number:Time | RW          | current position in track during playback or pause |
 | `reltrackposition` | Dimmer      | RW          | current position relative to track duration        |
+
+A numer of `upnprenderer` audio control channels may be dynamically created depending on the specific renderer capabilities.
+Examples of these are:
+
+| Channel Type ID    | Item Type   | Access Mode | Description                                        |
+|--------------------|-------------|-------------|----------------------------------------------------|
+| `loudness`         | Switch      | RW          | playback master loudness                           |
+| `lfvolume`         | Dimmer      | RW          | playback front left volume                         |
+| `lfmute`           | Switch      | RW          | playback front left mute                           |
+| `rfvolume`         | Dimmer      | RW          | playback front right volume                        |
+| `rfmute`           | Switch      | RW          | playback front right mute                          |
 
 ## Audio Support
 
@@ -134,10 +143,9 @@ Group MediaRenderer <player>
 
 Dimmer Volume    "Volume [%.1f %%]" <soundvolume>      (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:volume"}
 Switch Mute      "Mute"             <soundvolume_mute> (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:mute"}
+Switch Loudness  "Loudness"                            (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:loudness"}
 Dimmer LeftVolume "Volume [%.1f %%]" <soundvolume>     (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:lfvolume"}
-Switch LeftMute  "Mute"             <soundvolume_mute> (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:lfmute"}
 Dimmer RightVolume "Volume [%.1f %%]" <soundvolume>    (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:rfvolume"}
-Switch RightMute "Mute"             <soundvolume_mute> (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:rfmute"}
 Player Controls  "Controller"                          (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:control"}
 Switch Stop      "Stop"                                (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:stop"}
 String Title     "Now playing [%s]" <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:title"}
@@ -163,10 +171,9 @@ String Search   "Search"                               (MediaServer)   {channel=
 ```
 Slider  item=Volume
 Switch  item=Mute
+Switch  item=Loudness
 Slider  item=LeftVolume
-Switch  item=LeftMute
 Slider  item=RightVolume
-Switch  item=RightMute
 Default item=Controls
 Switch  item=Stop mappings=[ON="STOP"]
 Text    item=Title     
