@@ -46,7 +46,6 @@ public class UpnpEntryQueue {
 
     public UpnpEntryQueue(ArrayList<UpnpEntry> queue) {
         currentQueue = queue;
-        setNextShuffleIndex();
     }
 
     /**
@@ -65,10 +64,11 @@ public class UpnpEntryQueue {
      */
     public void setShuffle(boolean shuffle) {
         this.shuffle = shuffle;
+        this.shuffleIndex = nextShuffleIndex();
     }
 
-    private void setNextShuffleIndex() {
-        shuffleIndex = ThreadLocalRandom.current().nextInt(0, size());
+    private int nextShuffleIndex() {
+        return ThreadLocalRandom.current().nextInt(0, size());
     }
 
     /**
@@ -79,7 +79,7 @@ public class UpnpEntryQueue {
     public synchronized @Nullable UpnpEntry next() {
         if (shuffle) {
             currentIndex = shuffleIndex;
-            setNextShuffleIndex();
+            shuffleIndex = nextShuffleIndex();
         } else {
             currentIndex++;
             if (currentIndex >= size()) {
@@ -97,7 +97,7 @@ public class UpnpEntryQueue {
     public synchronized @Nullable UpnpEntry previous() {
         if (shuffle) {
             currentIndex = shuffleIndex;
-            setNextShuffleIndex();
+            shuffleIndex = nextShuffleIndex();
         } else {
             currentIndex--;
             if (currentIndex < 0) {
@@ -180,7 +180,7 @@ public class UpnpEntryQueue {
      */
     public synchronized void resetIndex() {
         currentIndex = -1;
-        setNextShuffleIndex();
+        shuffleIndex = shuffle ? nextShuffleIndex() : -1;
     }
 
     /**
