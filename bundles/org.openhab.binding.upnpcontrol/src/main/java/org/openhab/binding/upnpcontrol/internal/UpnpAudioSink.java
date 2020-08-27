@@ -115,7 +115,6 @@ public class UpnpAudioSink implements AudioSink {
     }
 
     private void playMedia(String url) {
-        stopMedia();
         String newUrl = url;
         if (!url.startsWith("x-") && !url.startsWith("http")) {
             newUrl = "x-file-cifs:" + url;

@@ -66,7 +66,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected UpnpIOService service;
 
     // The handlers can potentially create an important number of tasks, therefore put them in a separate thread pool
-    protected static final ScheduledExecutorService UPNP_SCHEDULER = ThreadPoolManager.getScheduledPool("upnpcontrol");
+    protected final ScheduledExecutorService upnpScheduler = ThreadPoolManager.getScheduledPool("binding-upnpcontrol");
 
     private boolean updateChannels;
     private final List<Channel> updatedChannels = new ArrayList<>();
@@ -123,9 +123,21 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         removeSubscriptions();
         cancelPollingJob();
 
-        isConnectionIdSet = null;
-        isAvTransportIdSet = null;
-        isRcsIdSet = null;
+        CompletableFuture<Boolean> connectionIdFuture = isConnectionIdSet;
+        if (connectionIdFuture != null) {
+            connectionIdFuture.complete(false);
+            isConnectionIdSet = null;
+        }
+        CompletableFuture<Boolean> avTransportIdFuture = isAvTransportIdSet;
+        if (avTransportIdFuture != null) {
+            avTransportIdFuture.complete(false);
+            isAvTransportIdSet = null;
+        }
+        CompletableFuture<Boolean> rcsIdFuture = isRcsIdSet;
+        if (rcsIdFuture != null) {
+            rcsIdFuture.complete(false);
+            isRcsIdSet = null;
+        }
 
         updateChannels = false;
         updatedChannels.clear();
@@ -150,9 +162,9 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         String udn = config.udn;
         if ((udn != null) && !udn.isEmpty()) {
             if (config.refresh == 0) {
-                UPNP_SCHEDULER.submit(this::initJob);
+                upnpScheduler.submit(this::initJob);
             } else {
-                pollingJob = UPNP_SCHEDULER.scheduleWithFixedDelay(this::initJob, 0, config.refresh, TimeUnit.SECONDS);
+                pollingJob = upnpScheduler.scheduleWithFixedDelay(this::initJob, 0, config.refresh, TimeUnit.SECONDS);
             }
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -347,27 +359,53 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      * @param inputs
      */
     protected void invokeAction(String serviceId, String actionId, Map<String, String> inputs) {
-        UPNP_SCHEDULER.submit(() -> {
+        upnpScheduler.submit(() -> {
             Map<String, String> result;
             synchronized (invokeActionLock) {
-                result = service.invokeAction(this, serviceId, actionId, inputs);
                 if (logger.isDebugEnabled() && !"GetPositionInfo".equals(actionId)) {
                     // don't log position info refresh every second
                     logger.debug("Upnp device {} invoke upnp action {} on service {} with inputs {}", thing.getLabel(),
                             actionId, serviceId, inputs);
+                }
+                result = service.invokeAction(this, serviceId, actionId, inputs);
+                if (logger.isDebugEnabled() && !"GetPositionInfo".equals(actionId)) {
+                    // don't log position info refresh every second
                     logger.debug("Upnp device {} invoke upnp action {} on service {} reply {}", thing.getLabel(),
                             actionId, serviceId, result);
                 }
+                result = preProcessInvokeActionResult(inputs, serviceId, actionId, result);
             }
             for (String variable : result.keySet()) {
-                String newVariable = preProcessValueReceived(inputs, variable, result.get(variable), serviceId);
-                onValueReceived(newVariable, result.get(variable), serviceId);
+                onValueReceived(variable, result.get(variable), serviceId);
             }
         });
     }
 
     /**
-     * Some received values need info on inputs of action. Therefore we allow to pre-process in a separate step.
+     * Some received values need info on inputs of action. Therefore we allow to pre-process in a separate step. The
+     * method will return an adjusted result list. The default implementation will copy over the received result without
+     * additional processing. Derived classes can add additional logic.
+     *
+     * @param inputs
+     * @param service
+     * @param result
+     * @return
+     */
+    protected Map<String, String> preProcessInvokeActionResult(Map<String, String> inputs, @Nullable String service,
+            @Nullable String action, Map<String, String> result) {
+        Map<String, String> newResult = new HashMap<>();
+        for (String variable : result.keySet()) {
+            String newVariable = preProcessValueReceived(inputs, variable, result.get(variable), service, action);
+            if (newVariable != null) {
+                newResult.put(newVariable, result.get(variable));
+            }
+        }
+        return newResult;
+    }
+
+    /**
+     * Some received values need info on inputs of action. Therefore we allow to pre-process in a separate step. The
+     * default implementation will return the original value. Derived classes can implement additional logic.
      *
      * @param inputs
      * @param variable
@@ -376,7 +414,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      * @return
      */
     protected @Nullable String preProcessValueReceived(Map<String, String> inputs, @Nullable String variable,
-            @Nullable String value, @Nullable String service) {
+            @Nullable String value, @Nullable String service, @Nullable String action) {
         return variable;
     }
 
@@ -465,7 +503,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         for (String subscription : serviceSubscriptions) {
             addSubscription(subscription, SUBSCRIPTION_DURATION_SECONDS);
         }
-        subscriptionRefreshJob = UPNP_SCHEDULER.scheduleWithFixedDelay(subscriptionRefresh,
+        subscriptionRefreshJob = upnpScheduler.scheduleWithFixedDelay(subscriptionRefresh,
                 SUBSCRIPTION_DURATION_SECONDS / 2, SUBSCRIPTION_DURATION_SECONDS / 2, TimeUnit.SECONDS);
 
         upnpSubscribed = true;

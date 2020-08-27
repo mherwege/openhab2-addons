@@ -29,10 +29,10 @@ class UpnpEntryRes {
     private String res = "";
 
     UpnpEntryRes(String protocolInfo, @Nullable Long size, @Nullable String duration, @Nullable String importUri) {
-        this.protocolInfo = protocolInfo;
+        this.protocolInfo = protocolInfo.trim();
         this.size = size;
-        this.duration = (duration == null) ? "" : duration;
-        this.importUri = (importUri == null) ? "" : importUri;
+        this.duration = (duration == null) ? "" : duration.trim();
+        this.importUri = (importUri == null) ? "" : importUri.trim();
     }
 
     /**
@@ -46,7 +46,7 @@ class UpnpEntryRes {
      * @param res the res to set
      */
     public void setRes(String res) {
-        this.res = res;
+        this.res = res.trim();
     }
 
     public String getProtocolInfo() {

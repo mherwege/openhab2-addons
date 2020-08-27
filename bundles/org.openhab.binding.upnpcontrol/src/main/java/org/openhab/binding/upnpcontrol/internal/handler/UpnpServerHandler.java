@@ -136,6 +136,17 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     @Override
+    public void dispose() {
+        CompletableFuture<Boolean> browsingFuture = isBrowsing;
+        if (browsingFuture != null) {
+            browsingFuture.complete(false);
+            isBrowsing = null;
+        }
+
+        super.dispose();
+    }
+
+    @Override
     protected void initJob() {
         synchronized (jobLock) {
             if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
@@ -182,19 +193,17 @@ public class UpnpServerHandler extends UpnpHandler {
                     if (previousRenderer != null) {
                         previousRenderer.unsetServerHandler();
                     }
-                    if (renderer != null) {
-                        renderer.setServerHandler(this);
+                    renderer.setServerHandler(this);
 
-                        Channel channel;
-                        if ((channel = thing.getChannel(VOLUME)) != null) {
-                            handleCommand(channel.getUID(), RefreshType.REFRESH);
-                        }
-                        if ((channel = thing.getChannel(MUTE)) != null) {
-                            handleCommand(channel.getUID(), RefreshType.REFRESH);
-                        }
-                        if ((channel = thing.getChannel(CONTROL)) != null) {
-                            handleCommand(channel.getUID(), RefreshType.REFRESH);
-                        }
+                    Channel channel;
+                    if ((channel = thing.getChannel(VOLUME)) != null) {
+                        handleCommand(channel.getUID(), RefreshType.REFRESH);
+                    }
+                    if ((channel = thing.getChannel(MUTE)) != null) {
+                        handleCommand(channel.getUID(), RefreshType.REFRESH);
+                    }
+                    if ((channel = thing.getChannel(CONTROL)) != null) {
+                        handleCommand(channel.getUID(), RefreshType.REFRESH);
                     }
                 }
                 break;
@@ -407,6 +416,9 @@ public class UpnpServerHandler extends UpnpHandler {
         try {
             if ((browsing == null) || (browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))) {
                 // wait for maximum 2.5s until browsing is finished
+
+                isBrowsing = new CompletableFuture<Boolean>();
+
                 Map<String, String> inputs = new HashMap<>();
                 inputs.put("ObjectID", objectID);
                 inputs.put("BrowseFlag", browseFlag);
@@ -445,6 +457,9 @@ public class UpnpServerHandler extends UpnpHandler {
         try {
             if ((browsing == null) || (browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))) {
                 // wait for maximum 2.5s until browsing is finished
+
+                isBrowsing = new CompletableFuture<Boolean>();
+
                 Map<String, String> inputs = new HashMap<>();
                 inputs.put("ContainerID", containerID);
                 inputs.put("SearchCriteria", searchCriteria);

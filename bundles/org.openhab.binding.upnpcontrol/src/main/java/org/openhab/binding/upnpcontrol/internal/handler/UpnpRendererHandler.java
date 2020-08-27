@@ -14,8 +14,11 @@ package org.openhab.binding.upnpcontrol.internal.handler;
 
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
+import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,6 +108,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private boolean shuffle = false;
     private volatile @Nullable UpnpEntry currentEntry = null;
     private volatile @Nullable UpnpEntry nextEntry = null;
+    private volatile String nowPlayingUri = ""; // used to block waiting for setting URI when it is the same as current
     private volatile boolean playerStopped;
     private volatile boolean playing;
     private volatile @Nullable ScheduledFuture<?> paused;
@@ -139,6 +143,11 @@ public class UpnpRendererHandler extends UpnpHandler {
     @Override
     public void dispose() {
         cancelTrackPositionRefresh();
+        resetPaused();
+        CompletableFuture<Boolean> settingURI = isSettingURI;
+        if (settingURI != null) {
+            settingURI.complete(false); // We have received current URI, so can allow play to start
+        }
 
         super.dispose();
     }
@@ -172,13 +181,13 @@ public class UpnpRendererHandler extends UpnpHandler {
                     return;
                 }
 
+                getProtocolInfo();
+
                 if (!upnpSubscribed) {
                     addSubscriptions();
                 }
 
                 updateChannels();
-
-                getProtocolInfo();
 
                 getCurrentConnectionInfo();
                 if (!checkForConnectionIds()) {
@@ -266,19 +275,24 @@ public class UpnpRendererHandler extends UpnpHandler {
      */
     public void play() {
         CompletableFuture<Boolean> settingURI = isSettingURI;
+        boolean uriSet = true;
         try {
-            if ((settingURI == null) || (settingURI.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))) {
+            if (settingURI != null) {
                 // wait for maximum 2.5s until the media URI is set before playing
-                Map<String, String> inputs = new HashMap<>();
-                inputs.put("InstanceID", Integer.toString(avTransportId));
-                inputs.put("Speed", "1");
-
-                invokeAction("AVTransport", "Play", inputs);
-            } else {
-                logger.debug("Cannot play, cancelled setting URI in the renderer");
+                uriSet = settingURI.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Timeout exception, cannot play, media URI not yet set in the renderer");
+            logger.debug("Timeout exception, media URI not yet set in the renderer, trying to play anyway");
+        }
+
+        if (uriSet) {
+            Map<String, String> inputs = new HashMap<>();
+            inputs.put("InstanceID", Integer.toString(avTransportId));
+            inputs.put("Speed", "1");
+
+            invokeAction("AVTransport", "Play", inputs);
+        } else {
+            logger.debug("Cannot play, cancelled setting URI in the renderer");
         }
     }
 
@@ -330,16 +344,28 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param URIMetaData
      */
     public void setCurrentURI(String URI, String URIMetaData) {
-        CompletableFuture<Boolean> settingURI = isSettingURI;
-        if (settingURI != null) {
-            settingURI.complete(false);
+        String uri = "";
+        try {
+            uri = URLDecoder.decode(URI.trim(), StandardCharsets.UTF_8.name());
+            // Some renderers don't send a URI Last Changed event when the same URI is requested, so don't wait for it
+            // before starting to play
+            if (!uri.equals(nowPlayingUri)) {
+                CompletableFuture<Boolean> settingURI = isSettingURI;
+                if (settingURI != null) {
+                    settingURI.complete(false);
+                }
+                isSettingURI = new CompletableFuture<Boolean>(); // set this so we don't start playing when not finished
+                                                                 // setting URI
+            } else {
+                logger.debug("New URI {} is same as previous", nowPlayingUri);
+            }
+        } catch (UnsupportedEncodingException ignore) {
+            uri = URI;
         }
-        isSettingURI = new CompletableFuture<Boolean>(); // set this so we don't start playing when not finished
-                                                         // setting URI
 
         Map<String, String> inputs = new HashMap<>();
         inputs.put("InstanceID", Integer.toString(avTransportId));
-        inputs.put("CurrentURI", URI);
+        inputs.put("CurrentURI", uri);
         inputs.put("CurrentURIMetaData", URIMetaData);
 
         invokeAction("AVTransport", "SetAVTransportURI", inputs);
@@ -358,6 +384,36 @@ public class UpnpRendererHandler extends UpnpHandler {
         inputs.put("NextURIMetaData", nextURIMetaData);
 
         invokeAction("AVTransport", "SetNextAVTransportURI", inputs);
+    }
+
+    /**
+     * Invoke GetTransportState on UPnP AV Transport.
+     * Result is received in {@link onValueReceived}.
+     */
+    protected void getTransportState() {
+        Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
+
+        invokeAction("AVTransport", "GetTransportInfo", inputs);
+    }
+
+    /**
+     * Invoke getPositionInfo on UPnP AV Transport.
+     * Result is received in {@link onValueReceived}.
+     */
+    protected void getPositionInfo() {
+        Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
+
+        invokeAction("AVTransport", "GetPositionInfo", inputs);
+    }
+
+    /**
+     * Invoke GetMediaInfo on UPnP AV Transport.
+     * Result is received in {@link onValueReceived}.
+     */
+    public void getMediaInfo() {
+        Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
+
+        invokeAction("AVTransport", "smarthome:audio stream http://icecast.vrtcdn.be/stubru_tijdloze-high.mp3", inputs);
     }
 
     /**
@@ -470,26 +526,6 @@ public class UpnpRendererHandler extends UpnpHandler {
         inputs.put("DesiredLoudness", mute == OnOffType.ON ? "1" : "0");
 
         invokeAction("RenderingControl", "SetLoudness", inputs);
-    }
-
-    /**
-     * Invoke GetTransportState on UPnP AV Transport.
-     * Result is received in {@link onValueReceived}.
-     */
-    protected void getTransportState() {
-        Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
-
-        invokeAction("AVTransport", "GetTransportInfo", inputs);
-    }
-
-    /**
-     * Invoke getPositionInfo on UPnP AV Transport.
-     * Result is received in {@link onValueReceived}.
-     */
-    protected void getPositionInfo() {
-        Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
-
-        invokeAction("AVTransport", "GetPositionInfo", inputs);
     }
 
     @Override
@@ -632,7 +668,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      * timeout, we will revert to playing state. This takes care of renderers that cannot pause playback.
      */
     private void checkPaused() {
-        paused = UPNP_SCHEDULER.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        paused = upnpScheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     private void resetPaused() {
@@ -666,7 +702,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     @Override
     protected @Nullable String preProcessValueReceived(Map<String, String> inputs, @Nullable String variable,
-            @Nullable String value, @Nullable String service) {
+            @Nullable String value, @Nullable String service, @Nullable String action) {
         if (variable == null) {
             return null;
         } else {
@@ -717,27 +753,20 @@ public class UpnpRendererHandler extends UpnpHandler {
                     onValueReceivedTransportState(value);
                     break;
                 case "CurrentTrackURI":
-                    onValueReceivedCurrentTrackURI(value);
+                case "CurrentURI":
+                    onValueReceivedCurrentURI(value);
                     break;
                 case "CurrentTrackMetaData":
-                    if (!((value == null) || (value.isEmpty()))) {
-                        List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
-                        if (!list.isEmpty()) {
-                            updateMetaDataState(list.get(0));
-                        }
-                    }
+                case "CurrentURIMetaData":
+                    onValueReceivedCurrentMetaData(value);
                     break;
                 case "NextAVTransportURIMetaData":
-                    if (!((value == null) || (value.isEmpty() || "NOT_IMPLEMENTED".equals(value)))) {
-                        List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
-                        if (!list.isEmpty()) {
-                            nextEntry = list.get(0);
-                        }
-                    }
+                case "NextURIMetaData":
+                    onValueReceivedNextMetaData(value);
                     break;
                 case "CurrentTrackDuration":
                 case "TrackDuration":
-                    onValueReceivedTrackDuration(value);
+                    onValueReceivedDuration(value);
                     break;
                 case "RelTime":
                     onValueReceivedRelTime(value);
@@ -783,21 +812,25 @@ public class UpnpRendererHandler extends UpnpHandler {
         // This is returned from a GENA subscription. The jupnp library does not allow receiving new GENA subscription
         // messages as long as this thread has not finished. As we may trigger long running processes based on this
         // result, we run it in a separate thread.
-        UPNP_SCHEDULER.submit(() -> {
+        upnpScheduler.submit(() -> {
             // pre-process some variables, eg XML processing
             if (!((value == null) || value.isEmpty())) {
                 if ("AVTransport".equals(service)) {
                     Map<String, String> parsedValues = UpnpXMLParser.getAVTransportFromXML(value);
                     for (Map.Entry<String, String> entrySet : parsedValues.entrySet()) {
-                        // Update the transport state after the update of the media information
-                        // to not break the notification mechanism
-                        if (!"TransportState".equals(entrySet.getKey())) {
-                            onValueReceived(entrySet.getKey(), entrySet.getValue(), service);
-                        }
-                        if ("AVTransportURI".equals(entrySet.getKey())) {
-                            onValueReceived("CurrentTrackURI", entrySet.getValue(), service);
-                        } else if ("AVTransportURIMetaData".equals(entrySet.getKey())) {
-                            onValueReceived("CurrentTrackMetaData", entrySet.getValue(), service);
+                        switch (entrySet.getKey()) {
+                            case "TransportState":
+                                // Update the transport state after the update of the media information
+                                // to not break the notification mechanism
+                                break;
+                            case "AVTransportURI":
+                                onValueReceived("CurrentTrackURI", entrySet.getValue(), service);
+                                break;
+                            case "AVTransportURIMetaData":
+                                onValueReceived("CurrentTrackMetaData", entrySet.getValue(), service);
+                                break;
+                            default:
+                                onValueReceived(entrySet.getKey(), entrySet.getValue(), service);
                         }
                     }
                     if (parsedValues.containsKey("TransportState")) {
@@ -833,8 +866,9 @@ public class UpnpRendererHandler extends UpnpHandler {
                     serveNext();
                 }
             } else {
-                currentEntry = nextEntry; // Try to get the metadata for the next entry if controlled by an
-                                          // external control point
+                // Try to get the metadata for the next entry if controlled by an external control point
+                currentEntry = currentQueue.next();
+                nextEntry = currentQueue.get(currentQueue.nextIndex());
                 playing = false;
             }
         } else if ("PLAYING".equals(value)) {
@@ -842,36 +876,84 @@ public class UpnpRendererHandler extends UpnpHandler {
             playing = true;
             updateState(CONTROL, PlayPauseType.PLAY);
             scheduleTrackPositionRefresh();
-        } else if ("PAUSED_PLAYBACK".contentEquals(value)) {
+        } else if ("PAUSED_PLAYBACK".equals(value)) {
             cancelCheckPaused();
             updateState(CONTROL, PlayPauseType.PAUSE);
         }
     }
 
-    private void onValueReceivedCurrentTrackURI(@Nullable String value) {
-        UpnpEntry current = currentEntry;
-        UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
-        if ((current != null) && (next != null) && !current.getRes().equals(value) && next.getRes().equals(value)) {
-            // Renderer advanced to next entry independent of openHAB UPnP control point.
-            // Advance in the queue to keep proper position status.
-            // Make the next entry available to renderers that support it.
-            updateMetaDataState(next);
-            logger.trace("Renderer moved from '{}' to next entry '{}' in queue", current, next);
-            currentEntry = currentQueue.next();
-
-            // look one further to get next entry for next URI
-            next = currentQueue.get(currentQueue.nextIndex());
-            if (next != null) {
-                setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
-            }
-        }
+    private void onValueReceivedCurrentURI(@Nullable String value) {
         CompletableFuture<Boolean> settingURI = isSettingURI;
         if (settingURI != null) {
             settingURI.complete(true); // We have received current URI, so can allow play to start
         }
+
+        UpnpEntry current = currentEntry;
+        UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
+
+        String uri = "";
+        String currentUri = "";
+        String nextUri = "";
+        try {
+            if (value != null) {
+                uri = URLDecoder.decode(value.trim(), StandardCharsets.UTF_8.name());
+            }
+            if (current != null) {
+                currentUri = URLDecoder.decode(current.getRes().trim(), StandardCharsets.UTF_8.name());
+            }
+            if (next != null) {
+                nextUri = URLDecoder.decode(next.getRes(), StandardCharsets.UTF_8.name());
+            }
+        } catch (UnsupportedEncodingException ignore) {
+            // If not valid current URI, we assume there is none
+        }
+
+        nowPlayingUri = uri;
+
+        if (!uri.equals(currentUri)) {
+            if (uri.equals(nextUri) && (next != null)) {
+                // Renderer advanced to next entry independent of openHAB UPnP control point.
+                // Advance in the queue to keep proper position status.
+                // Make the next entry available to renderers that support it.
+                updateMetaDataState(next);
+                logger.trace("Renderer moved from '{}' to next entry '{}' in queue", current, next);
+                currentEntry = currentQueue.next();
+
+                // look one further to get next entry for next URI
+                next = currentQueue.get(currentQueue.nextIndex());
+                if (next != null) {
+                    setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
+                }
+            } else {
+                // A new entry is being served that does not match the next entry in the queue. This can be because a
+                // sound or stream is being played through an action, or another control point started a new entry.
+                // We should clear the metadata in this case and wait for new metadata to arrive.
+                clearMetaDataState();
+            }
+        }
     }
 
-    private void onValueReceivedTrackDuration(@Nullable String value) {
+    private void onValueReceivedCurrentMetaData(@Nullable String value) {
+        if (!((value == null) || (value.isEmpty()))) {
+            List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
+            if (!list.isEmpty()) {
+                updateMetaDataState(list.get(0));
+                return;
+            }
+        }
+        clearMetaDataState();
+    }
+
+    private void onValueReceivedNextMetaData(@Nullable String value) {
+        if (!((value == null) || (value.isEmpty() || "NOT_IMPLEMENTED".equals(value)))) {
+            List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
+            if (!list.isEmpty()) {
+                nextEntry = list.get(0);
+            }
+        }
+    }
+
+    private void onValueReceivedDuration(@Nullable String value) {
         // track duration and track position have format H+:MM:SS[.F+] or H+:MM:SS[.F0/F1]. We are not
         // interested in the fractional seconds, so drop everything after . and calculate in seconds.
         if ((value == null) || ("NOT_IMPLEMENTED".equals(value))) {
@@ -953,14 +1035,8 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void clearCurrentEntry() {
-        updateState(TITLE, UnDefType.UNDEF);
-        updateState(ALBUM, UnDefType.UNDEF);
-        updateState(ALBUM_ART, UnDefType.UNDEF);
-        updateState(CREATOR, UnDefType.UNDEF);
-        updateState(ARTIST, UnDefType.UNDEF);
-        updateState(PUBLISHER, UnDefType.UNDEF);
-        updateState(GENRE, UnDefType.UNDEF);
-        updateState(TRACK_NUMBER, UnDefType.UNDEF);
+        clearMetaDataState();
+
         trackDuration = 0;
         updateState(TRACK_DURATION, UnDefType.UNDEF);
         trackPosition = 0;
@@ -983,21 +1059,15 @@ public class UpnpRendererHandler extends UpnpHandler {
         currentQueue.setRepeat(repeat);
         currentQueue.setShuffle(shuffle);
         if (playing) {
-            UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
+            nextEntry = currentQueue.get(currentQueue.nextIndex());
+            UpnpEntry next = nextEntry;
             if (next != null) {
                 // make the next entry available to renderers that support it
                 logger.trace("Still playing, set new queue as next entry");
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
             }
         } else {
-            UpnpEntry entry = currentQueue.next();
-            if (entry != null) {
-                updateMetaDataState(entry);
-                setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
-                currentEntry = entry;
-            } else {
-                clearCurrentEntry();
-            }
+            resetToStartQueue();
         }
     }
 
@@ -1007,6 +1077,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void serveNext() {
         if (currentQueue.hasNext()) {
             currentEntry = currentQueue.next();
+            nextEntry = currentQueue.get(currentQueue.nextIndex());
             logger.debug("Serve next media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
             serve();
         } else {
@@ -1020,6 +1091,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      */
     private void servePrevious() {
         if (currentQueue.hasPrevious()) {
+            nextEntry = currentEntry;
             currentEntry = currentQueue.previous();
             logger.debug("Serve previous media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
             serve();
@@ -1030,14 +1102,14 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void resetToStartQueue() {
-        cancelTrackPositionRefresh();
         stop();
         currentQueue.resetIndex(); // reset to beginning of queue
-        UpnpEntry entry = currentQueue.next();
+        currentEntry = null;
+        nextEntry = currentQueue.get(currentQueue.nextIndex());
+        UpnpEntry entry = nextEntry;
         if (entry != null) {
             updateMetaDataState(entry);
             setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
-            currentEntry = entry;
         } else {
             clearCurrentEntry();
         }
@@ -1082,7 +1154,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             getPositionInfo();
         } else {
             if (trackPositionRefresh == null) {
-                trackPositionRefresh = UPNP_SCHEDULER.scheduleWithFixedDelay(this::getPositionInfo, 1, 1,
+                trackPositionRefresh = upnpScheduler.scheduleWithFixedDelay(this::getPositionInfo, 1, 1,
                         TimeUnit.SECONDS);
             }
         }
@@ -1108,20 +1180,27 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param media
      */
     private void updateMetaDataState(UpnpEntry media) {
-        // The AVTransport passes the URI resource in the ID.
-        // We don't want to update metadata if the metadata from the AVTransport is empty for the current entry.
-        boolean isCurrent;
+        // We don't want to update metadata if the metadata from the AVTransport is less complete than in the current
+        // entry.
+        boolean isCurrent = false;
         UpnpEntry entry = currentEntry;
-        if (entry == null) {
-            entry = new UpnpEntry(media.getId(), media.getId(), "", "object.item");
-            currentEntry = entry;
-            isCurrent = false;
-        } else {
-            isCurrent = media.getId().equals(entry.getRes());
+        String mediaRes = media.getRes();
+        String entryRes = (entry != null) ? entry.getRes() : "";
+
+        try {
+            String mediaUrl = URLDecoder.decode(mediaRes, StandardCharsets.UTF_8.name());
+            String entryUrl = URLDecoder.decode(entryRes, StandardCharsets.UTF_8.name());
+            isCurrent = mediaUrl.equals(entryUrl);
+        } catch (UnsupportedEncodingException e) {
+            logger.debug("Unsupported encoding for new {} or current {} res URL, trying string compare", mediaRes,
+                    entryRes);
+            isCurrent = mediaRes.equals(entryRes);
         }
+
         logger.trace("Media ID: {}", media.getId());
-        logger.trace("Current queue res: {}", entry.getRes());
-        logger.trace("Updating current entry: {}", isCurrent);
+        logger.trace("Current queue res: {}", entryRes);
+        logger.trace("Updated media res: {}", mediaRes);
+        logger.trace("Received meta data is for current entry: {}", isCurrent);
 
         if (!(isCurrent && media.getTitle().isEmpty())) {
             updateState(TITLE, StringType.valueOf(media.getTitle()));
@@ -1162,6 +1241,17 @@ public class UpnpRendererHandler extends UpnpHandler {
             State trackNumberState = (trackNumber != null) ? new DecimalType(trackNumber) : UnDefType.UNDEF;
             updateState(TRACK_NUMBER, trackNumberState);
         }
+    }
+
+    private void clearMetaDataState() {
+        updateState(TITLE, UnDefType.UNDEF);
+        updateState(ALBUM, UnDefType.UNDEF);
+        updateState(ALBUM_ART, UnDefType.UNDEF);
+        updateState(CREATOR, UnDefType.UNDEF);
+        updateState(ARTIST, UnDefType.UNDEF);
+        updateState(PUBLISHER, UnDefType.UNDEF);
+        updateState(GENRE, UnDefType.UNDEF);
+        updateState(TRACK_NUMBER, UnDefType.UNDEF);
     }
 
     /**
