@@ -15,7 +15,6 @@ package org.openhab.binding.upnpcontrol.internal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -37,9 +36,9 @@ public class UpnpEntryQueue {
     private boolean shuffle = false;
 
     private int currentIndex = -1;
-    private int shuffleIndex = -1;
 
     private volatile List<UpnpEntry> currentQueue = Collections.synchronizedList(new ArrayList<>());
+    private volatile List<UpnpEntry> shuffledQueue = Collections.synchronizedList(new ArrayList<>());
 
     public UpnpEntryQueue() {
     }
@@ -64,45 +63,43 @@ public class UpnpEntryQueue {
      */
     public void setShuffle(boolean shuffle) {
         this.shuffle = shuffle;
-        this.shuffleIndex = nextShuffleIndex();
-    }
-
-    private int nextShuffleIndex() {
-        return ThreadLocalRandom.current().nextInt(0, size());
+        if (shuffle) {
+            shuffledQueue = new ArrayList<UpnpEntry>(currentQueue);
+            Collections.shuffle(shuffledQueue);
+            int index = currentIndex;
+            if (index != -1) {
+                currentIndex = shuffledQueue.indexOf(currentQueue.get(index));
+            }
+        } else {
+            int index = currentIndex;
+            if (index != -1) {
+                currentIndex = currentQueue.indexOf(shuffledQueue.get(index));
+            }
+        }
     }
 
     /**
      * @return will return the next element in the queue, or null when the end of the queue has been reached. With
-     *         shuffle set, will always return a next random element. With repeat set, will restart at the beginning of
-     *         the queue when the end has been reached. The method will return null if the queue is empty.
+     *         repeat set, will restart at the beginning of the queue when the end has been reached. The method will
+     *         return null if the queue is empty.
      */
     public synchronized @Nullable UpnpEntry next() {
-        if (shuffle) {
-            currentIndex = shuffleIndex;
-            shuffleIndex = nextShuffleIndex();
-        } else {
-            currentIndex++;
-            if (currentIndex >= size()) {
-                currentIndex = repeat ? 0 : -1;
-            }
+        currentIndex++;
+        if (currentIndex >= size()) {
+            currentIndex = repeat ? 0 : -1;
         }
         return currentIndex >= 0 ? get(currentIndex) : null;
     }
 
     /**
      * @return will return the previous element in the queue, or null when the start of the queue has been reached. With
-     *         shuffle set, will always return a next random element. With repeat set, will restart at the end of
-     *         the queue when the start has been reached. The method will return null if the queue is empty.
+     *         repeat set, will restart at the end of the queue when the start has been reached. The method will return
+     *         null if the queue is empty.
      */
     public synchronized @Nullable UpnpEntry previous() {
-        if (shuffle) {
-            currentIndex = shuffleIndex;
-            shuffleIndex = nextShuffleIndex();
-        } else {
-            currentIndex--;
-            if (currentIndex < 0) {
-                currentIndex = repeat ? size() - 1 : -1;
-            }
+        currentIndex--;
+        if (currentIndex < 0) {
+            currentIndex = repeat ? size() - 1 : -1;
         }
         return currentIndex >= 0 ? get(currentIndex) : null;
     }
@@ -112,14 +109,9 @@ public class UpnpEntryQueue {
      *         nothing to serve for next.
      */
     public synchronized int nextIndex() {
-        int index;
-        if (shuffle) {
-            index = shuffleIndex;
-        } else {
-            index = currentIndex + 1;
-            if (index >= size()) {
-                index = repeat ? 0 : -1;
-            }
+        int index = currentIndex + 1;
+        if (index >= size()) {
+            index = repeat ? 0 : -1;
         }
         return index;
     }
@@ -129,14 +121,9 @@ public class UpnpEntryQueue {
      *         if nothing to serve for next.
      */
     public synchronized int previousIndex() {
-        int index;
-        if (shuffle) {
-            index = shuffleIndex;
-        } else {
-            index = currentIndex - 1;
-            if (index < 0) {
-                index = repeat ? size() - 1 : -1;
-            }
+        int index = currentIndex - 1;
+        if (index < 0) {
+            index = repeat ? size() - 1 : -1;
         }
         return index;
     }
@@ -146,10 +133,10 @@ public class UpnpEntryQueue {
      */
     public synchronized boolean hasNext() {
         int size = currentQueue.size();
-        if ((repeat || shuffle) && size > 0) {
+        if (repeat && (size > 0)) {
             return true;
         }
-        return currentIndex < (size - 1);
+        return (currentIndex < (size - 1));
     }
 
     /**
@@ -157,10 +144,10 @@ public class UpnpEntryQueue {
      */
     public synchronized boolean hasPrevious() {
         int size = currentQueue.size();
-        if ((repeat || shuffle) && size > 0) {
+        if (repeat && (size > 0)) {
             return true;
         }
-        return currentIndex > 0;
+        return (currentIndex > 0);
     }
 
     /**
@@ -169,7 +156,11 @@ public class UpnpEntryQueue {
      */
     public @Nullable synchronized UpnpEntry get(int index) {
         if ((index >= 0) && (index < size())) {
-            return currentQueue.get(index);
+            if (shuffle) {
+                return shuffledQueue.get(index);
+            } else {
+                return currentQueue.get(index);
+            }
         } else {
             return null;
         }
@@ -180,7 +171,6 @@ public class UpnpEntryQueue {
      */
     public synchronized void resetIndex() {
         currentIndex = -1;
-        shuffleIndex = shuffle ? nextShuffleIndex() : -1;
     }
 
     /**
