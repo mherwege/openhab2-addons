@@ -599,7 +599,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             } else {
                 switch (id) {
                     case STOP:
-                        if (command == OnOffType.ON) {
+                        if (OnOffType.ON.equals(command)) {
                             updateState(CONTROL, PlayPauseType.PAUSE);
                             playerStopped = true;
                             stop();
@@ -609,23 +609,23 @@ public class UpnpRendererHandler extends UpnpHandler {
                     case CONTROL:
                         playerStopped = false;
                         if (command instanceof PlayPauseType) {
-                            if (command == PlayPauseType.PLAY) {
+                            if (PlayPauseType.PLAY.equals(command)) {
                                 play();
-                            } else if (command == PlayPauseType.PAUSE) {
+                            } else if (PlayPauseType.PAUSE.equals(command)) {
                                 checkPaused();
                                 pause();
                             }
                         } else if (command instanceof NextPreviousType) {
-                            if (command == NextPreviousType.NEXT) {
+                            if (NextPreviousType.NEXT.equals(command)) {
                                 playerStopped = true;
                                 serveNext();
-                            } else if (command == NextPreviousType.PREVIOUS) {
+                            } else if (NextPreviousType.PREVIOUS.equals(command)) {
                                 playerStopped = true;
                                 servePrevious();
                             }
                         } else if (command instanceof RewindFastforwardType) {
                             int pos = 0;
-                            if (command == RewindFastforwardType.FASTFORWARD) {
+                            if (RewindFastforwardType.FASTFORWARD.equals(command)) {
                                 pos = Integer.min(trackDuration, trackPosition + config.seekstep);
                             } else if (command == RewindFastforwardType.REWIND) {
                                 pos = Integer.max(0, trackPosition - config.seekstep);
@@ -634,12 +634,15 @@ public class UpnpRendererHandler extends UpnpHandler {
                         }
                         break;
                     case REPEAT:
-                        repeat = (command == OnOffType.ON);
+                        repeat = (OnOffType.ON.equals(command));
                         currentQueue.setRepeat(repeat);
                         break;
                     case SHUFFLE:
-                        shuffle = (command == OnOffType.ON);
+                        shuffle = (OnOffType.ON.equals(command));
                         currentQueue.setShuffle(shuffle);
+                        if (!playing) {
+                            resetToStartQueue();
+                        }
                         break;
                     case TRACK_POSITION:
                         if (command instanceof QuantityType<?>) {
@@ -856,15 +859,15 @@ public class UpnpRendererHandler extends UpnpHandler {
             // end of an entry, because STOP would come from the player and not from openHAB. We should then
             // move to the next entry if the queue is not at the end already.
             if (playing && !playerStopped) {
-                // Only go to next for first STOP command, then wait until we received PLAYING before moving
-                // to next (avoids issues with renderers sending multiple stop states)
-                playing = false;
                 if (Instant.now().toEpochMilli() >= expectedTrackend) {
                     // If we are receiving track duration info, we know when the track is expected to end. If we
                     // received STOP before track end, and it is not coming from openHAB, it must have been stopped from
                     // the renderer directly, and we do not want to play the next entry.
                     serveNext();
                 }
+                // Only go to next for first STOP command, then wait until we received PLAYING before moving
+                // to next (avoids issues with renderers sending multiple stop states)
+                playing = false;
             } else {
                 // Try to get the metadata for the next entry if controlled by an external control point
                 currentEntry = currentQueue.next();
@@ -1079,7 +1082,15 @@ public class UpnpRendererHandler extends UpnpHandler {
             currentEntry = currentQueue.next();
             nextEntry = currentQueue.get(currentQueue.nextIndex());
             logger.debug("Serve next media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
-            serve();
+
+            UpnpEntry entry = currentEntry;
+            if (entry != null) {
+                updateMetaDataState(entry);
+            }
+
+            if (playing) {
+                serve();
+            }
         } else {
             logger.debug("Cannot serve next, end of queue on renderer {}", thing.getLabel());
             resetToStartQueue();
@@ -1094,7 +1105,15 @@ public class UpnpRendererHandler extends UpnpHandler {
             nextEntry = currentEntry;
             currentEntry = currentQueue.previous();
             logger.debug("Serve previous media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
-            serve();
+
+            UpnpEntry entry = currentEntry;
+            if (entry != null) {
+                updateMetaDataState(entry);
+            }
+
+            if (playing) {
+                serve();
+            }
         } else {
             logger.debug("Cannot serve previous, already at start of queue on renderer {}", thing.getLabel());
             resetToStartQueue();

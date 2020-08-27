@@ -413,26 +413,30 @@ public class UpnpServerHandler extends UpnpHandler {
     public void browse(String objectID, String browseFlag, String filter, String startingIndex, String requestedCount,
             String sortCriteria) {
         CompletableFuture<Boolean> browsing = isBrowsing;
+        boolean browsed = true;
         try {
-            if ((browsing == null) || (browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))) {
+            if (browsing != null) {
                 // wait for maximum 2.5s until browsing is finished
-
-                isBrowsing = new CompletableFuture<Boolean>();
-
-                Map<String, String> inputs = new HashMap<>();
-                inputs.put("ObjectID", objectID);
-                inputs.put("BrowseFlag", browseFlag);
-                inputs.put("Filter", filter);
-                inputs.put("StartingIndex", startingIndex);
-                inputs.put("RequestedCount", requestedCount);
-                inputs.put("SortCriteria", sortCriteria);
-
-                invokeAction("ContentDirectory", "Browse", inputs);
-            } else {
-                logger.debug("Cannot browse, cancelled querying the server");
+                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Cannot browse, previous server query interrupted or timed out");
+            logger.debug("Exception, previous server query interrupted or timed out, trying new browse anyway");
+        }
+
+        if (browsed) {
+            isBrowsing = new CompletableFuture<Boolean>();
+
+            Map<String, String> inputs = new HashMap<>();
+            inputs.put("ObjectID", objectID);
+            inputs.put("BrowseFlag", browseFlag);
+            inputs.put("Filter", filter);
+            inputs.put("StartingIndex", startingIndex);
+            inputs.put("RequestedCount", requestedCount);
+            inputs.put("SortCriteria", sortCriteria);
+
+            invokeAction("ContentDirectory", "Browse", inputs);
+        } else {
+            logger.debug("Cannot browse, cancelled querying the server");
         }
     }
 
@@ -454,26 +458,30 @@ public class UpnpServerHandler extends UpnpHandler {
     public void search(String containerID, String searchCriteria, String filter, String startingIndex,
             String requestedCount, String sortCriteria) {
         CompletableFuture<Boolean> browsing = isBrowsing;
+        boolean browsed = true;
         try {
-            if ((browsing == null) || (browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))) {
+            if (browsing != null) {
                 // wait for maximum 2.5s until browsing is finished
-
-                isBrowsing = new CompletableFuture<Boolean>();
-
-                Map<String, String> inputs = new HashMap<>();
-                inputs.put("ContainerID", containerID);
-                inputs.put("SearchCriteria", searchCriteria);
-                inputs.put("Filter", filter);
-                inputs.put("StartingIndex", startingIndex);
-                inputs.put("RequestedCount", requestedCount);
-                inputs.put("SortCriteria", sortCriteria);
-
-                invokeAction("ContentDirectory", "Search", inputs);
-            } else {
-                logger.debug("Cannot search, cancelled querying the server");
+                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Cannot search, previous server query interrupted or timed out");
+            logger.debug("Exception, previous server query interrupted or timed out, trying new search anyway");
+        }
+
+        if (browsed) {
+            isBrowsing = new CompletableFuture<Boolean>();
+
+            Map<String, String> inputs = new HashMap<>();
+            inputs.put("ContainerID", containerID);
+            inputs.put("SearchCriteria", searchCriteria);
+            inputs.put("Filter", filter);
+            inputs.put("StartingIndex", startingIndex);
+            inputs.put("RequestedCount", requestedCount);
+            inputs.put("SortCriteria", sortCriteria);
+
+            invokeAction("ContentDirectory", "Search", inputs);
+        } else {
+            logger.debug("Cannot search, cancelled querying the server");
         }
     }
 
