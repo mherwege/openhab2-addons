@@ -111,6 +111,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile String nowPlayingUri = ""; // used to block waiting for setting URI when it is the same as current
     private volatile boolean playerStopped;
     private volatile boolean playing;
+    private volatile boolean playingQueue;
     private volatile @Nullable ScheduledFuture<?> paused;
     private volatile @Nullable CompletableFuture<Boolean> isSettingURI;
     private volatile int trackDuration = 0;
@@ -265,6 +266,8 @@ public class UpnpRendererHandler extends UpnpHandler {
      * Invoke Stop on UPnP AV Transport.
      */
     public void stop() {
+        playerStopped = true;
+
         Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
 
         invokeAction("AVTransport", "Stop", inputs);
@@ -601,13 +604,11 @@ public class UpnpRendererHandler extends UpnpHandler {
                     case STOP:
                         if (OnOffType.ON.equals(command)) {
                             updateState(CONTROL, PlayPauseType.PAUSE);
-                            playerStopped = true;
                             stop();
                             updateState(TRACK_POSITION, new QuantityType<>(0, SmartHomeUnits.SECOND));
                         }
                         break;
                     case CONTROL:
-                        playerStopped = false;
                         if (command instanceof PlayPauseType) {
                             if (PlayPauseType.PLAY.equals(command)) {
                                 play();
@@ -617,10 +618,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                             }
                         } else if (command instanceof NextPreviousType) {
                             if (NextPreviousType.NEXT.equals(command)) {
-                                playerStopped = true;
                                 serveNext();
                             } else if (NextPreviousType.PREVIOUS.equals(command)) {
-                                playerStopped = true;
                                 servePrevious();
                             }
                         } else if (command instanceof RewindFastforwardType) {
@@ -636,6 +635,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                     case REPEAT:
                         repeat = (OnOffType.ON.equals(command));
                         currentQueue.setRepeat(repeat);
+                        updateState(channelUID, (State) command);
                         break;
                     case SHUFFLE:
                         shuffle = (OnOffType.ON.equals(command));
@@ -643,6 +643,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                         if (!playing) {
                             resetToStartQueue();
                         }
+                        updateState(channelUID, (State) command);
                         break;
                     case TRACK_POSITION:
                         if (command instanceof QuantityType<?>) {
@@ -855,25 +856,24 @@ public class UpnpRendererHandler extends UpnpHandler {
             cancelCheckPaused();
             updateState(CONTROL, PlayPauseType.PAUSE);
             cancelTrackPositionRefresh();
-            // playerStopped is true if stop came from openHAB. This allows us to identify if we played to the
-            // end of an entry, because STOP would come from the player and not from openHAB. We should then
-            // move to the next entry if the queue is not at the end already.
-            if (playing && !playerStopped) {
-                if (Instant.now().toEpochMilli() >= expectedTrackend) {
-                    // If we are receiving track duration info, we know when the track is expected to end. If we
-                    // received STOP before track end, and it is not coming from openHAB, it must have been stopped from
-                    // the renderer directly, and we do not want to play the next entry.
-                    serveNext();
+            // Only go to next for first STOP command, then wait until we received PLAYING before moving
+            // to next (avoids issues with renderers sending multiple stop states)
+            if (playing) {
+                // playerStopped is true if stop came from openHAB. This allows us to identify if we played to the
+                // end of an entry, because STOP would come from the player and not from openHAB. We should then
+                // move to the next entry if the queue is not at the end already.
+                if (!playerStopped) {
+                    if (Instant.now().toEpochMilli() >= expectedTrackend) {
+                        // If we are receiving track duration info, we know when the track is expected to end. If we
+                        // received STOP before track end, and it is not coming from openHAB, it must have been stopped
+                        // from the renderer directly, and we do not want to play the next entry.
+                        if (playingQueue) {
+                            serveNext();
+                        }
+                    }
                 }
-                // Only go to next for first STOP command, then wait until we received PLAYING before moving
-                // to next (avoids issues with renderers sending multiple stop states)
-                playing = false;
-            } else {
-                // Try to get the metadata for the next entry if controlled by an external control point
-                currentEntry = currentQueue.next();
-                nextEntry = currentQueue.get(currentQueue.nextIndex());
-                playing = false;
             }
+            playing = false;
         } else if ("PLAYING".equals(value)) {
             playerStopped = false;
             playing = true;
@@ -892,7 +892,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
 
         UpnpEntry current = currentEntry;
-        UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
+        UpnpEntry next = nextEntry;
 
         String uri = "";
         String currentUri = "";
@@ -918,12 +918,15 @@ public class UpnpRendererHandler extends UpnpHandler {
                 // Renderer advanced to next entry independent of openHAB UPnP control point.
                 // Advance in the queue to keep proper position status.
                 // Make the next entry available to renderers that support it.
-                updateMetaDataState(next);
                 logger.trace("Renderer moved from '{}' to next entry '{}' in queue", current, next);
                 currentEntry = currentQueue.next();
+                nextEntry = currentQueue.get(currentQueue.nextIndex());
+                logger.trace("Auto move forward, current queue index: {}", currentQueue.index());
+
+                updateMetaDataState(next);
 
                 // look one further to get next entry for next URI
-                next = currentQueue.get(currentQueue.nextIndex());
+                next = nextEntry;
                 if (next != null) {
                     setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
                 }
@@ -931,6 +934,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 // A new entry is being served that does not match the next entry in the queue. This can be because a
                 // sound or stream is being played through an action, or another control point started a new entry.
                 // We should clear the metadata in this case and wait for new metadata to arrive.
+                playingQueue = false;
                 clearMetaDataState();
             }
         }
@@ -1061,7 +1065,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         currentQueue = new UpnpEntryQueue(queue);
         currentQueue.setRepeat(repeat);
         currentQueue.setShuffle(shuffle);
-        if (playing) {
+        if (playingQueue) {
             nextEntry = currentQueue.get(currentQueue.nextIndex());
             UpnpEntry next = nextEntry;
             if (next != null) {
@@ -1081,16 +1085,10 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (currentQueue.hasNext()) {
             currentEntry = currentQueue.next();
             nextEntry = currentQueue.get(currentQueue.nextIndex());
+            logger.trace("Serve next, current queue index: {}", currentQueue.index());
             logger.debug("Serve next media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
 
-            UpnpEntry entry = currentEntry;
-            if (entry != null) {
-                updateMetaDataState(entry);
-            }
-
-            if (playing) {
-                serve();
-            }
+            serve();
         } else {
             logger.debug("Cannot serve next, end of queue on renderer {}", thing.getLabel());
             resetToStartQueue();
@@ -1102,18 +1100,12 @@ public class UpnpRendererHandler extends UpnpHandler {
      */
     private void servePrevious() {
         if (currentQueue.hasPrevious()) {
-            nextEntry = currentEntry;
             currentEntry = currentQueue.previous();
+            nextEntry = currentQueue.get(currentQueue.nextIndex());
+            logger.trace("Serve previous, current queue index: {}", currentQueue.index());
             logger.debug("Serve previous media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
 
-            UpnpEntry entry = currentEntry;
-            if (entry != null) {
-                updateMetaDataState(entry);
-            }
-
-            if (playing) {
-                serve();
-            }
+            serve();
         } else {
             logger.debug("Cannot serve previous, already at start of queue on renderer {}", thing.getLabel());
             resetToStartQueue();
@@ -1121,11 +1113,14 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void resetToStartQueue() {
+        playing = false;
         stop();
+
         currentQueue.resetIndex(); // reset to beginning of queue
-        currentEntry = null;
+        currentEntry = currentQueue.next();
         nextEntry = currentQueue.get(currentQueue.nextIndex());
-        UpnpEntry entry = nextEntry;
+        logger.trace("Reset queue, current queue index: {}", currentQueue.index());
+        UpnpEntry entry = currentEntry;
         if (entry != null) {
             updateMetaDataState(entry);
             setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
@@ -1142,24 +1137,31 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void serve() {
         UpnpEntry entry = currentEntry;
         if (entry != null) {
-            logger.trace("Ready to play '{}' from queue", currentEntry);
             updateMetaDataState(entry);
             String res = entry.getRes();
             if (res.isEmpty()) {
                 logger.debug("Cannot serve media '{}', no URI", currentEntry);
+                playingQueue = true;
                 return;
             }
             setCurrentURI(res, UpnpXMLParser.compileMetadataString(entry));
-            trackDuration = 0;
-            trackPosition = 0;
-            expectedTrackend = 0;
-            play();
 
-            // make the next entry available to renderers that support it
-            UpnpEntry next = currentQueue.get(currentQueue.nextIndex());
-            if (next != null) {
-                setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
+            if (playingQueue || playing) {
+                logger.trace("Ready to play '{}' from queue", currentEntry);
+
+                trackDuration = 0;
+                trackPosition = 0;
+                expectedTrackend = 0;
+                play();
+
+                // make the next entry available to renderers that support it
+                UpnpEntry next = nextEntry;
+                if (next != null) {
+                    setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
+                }
             }
+
+            playingQueue = true;
         }
     }
 
@@ -1202,7 +1204,10 @@ public class UpnpRendererHandler extends UpnpHandler {
         // We don't want to update metadata if the metadata from the AVTransport is less complete than in the current
         // entry.
         boolean isCurrent = false;
-        UpnpEntry entry = currentEntry;
+        UpnpEntry entry = null;
+        if (playingQueue) {
+            entry = currentEntry;
+        }
         String mediaRes = media.getRes();
         String entryRes = (entry != null) ? entry.getRes() : "";
 

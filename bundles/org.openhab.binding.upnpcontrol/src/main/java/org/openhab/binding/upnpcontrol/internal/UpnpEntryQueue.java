@@ -32,10 +32,10 @@ import org.eclipse.jdt.annotation.Nullable;
 @NonNullByDefault
 public class UpnpEntryQueue {
 
-    private boolean repeat = false;
-    private boolean shuffle = false;
+    private volatile boolean repeat = false;
+    private volatile boolean shuffle = false;
 
-    private int currentIndex = -1;
+    private volatile int currentIndex = -1;
 
     private volatile List<UpnpEntry> currentQueue = Collections.synchronizedList(new ArrayList<>());
     private volatile List<UpnpEntry> shuffledQueue = Collections.synchronizedList(new ArrayList<>());
@@ -61,21 +61,36 @@ public class UpnpEntryQueue {
      *
      * @param shuffle
      */
-    public void setShuffle(boolean shuffle) {
-        this.shuffle = shuffle;
+    public synchronized void setShuffle(boolean shuffle) {
         if (shuffle) {
-            shuffledQueue = new ArrayList<UpnpEntry>(currentQueue);
-            Collections.shuffle(shuffledQueue);
-            int index = currentIndex;
-            if (index != -1) {
-                currentIndex = shuffledQueue.indexOf(currentQueue.get(index));
-            }
+            shuffle();
         } else {
             int index = currentIndex;
             if (index != -1) {
                 currentIndex = currentQueue.indexOf(shuffledQueue.get(index));
             }
+            this.shuffle = false;
         }
+    }
+
+    private synchronized void shuffle() {
+        UpnpEntry current = null;
+        int index = currentIndex;
+        if (index != -1) {
+            current = this.shuffle ? shuffledQueue.get(index) : currentQueue.get(index);
+        }
+
+        // Shuffle the queue again
+        shuffledQueue = new ArrayList<UpnpEntry>(currentQueue);
+        Collections.shuffle(shuffledQueue);
+        if (current != null) {
+            // Put the current entry at the beginning of the shuffled queue
+            shuffledQueue.remove(current);
+            shuffledQueue.add(0, current);
+            currentIndex = 0;
+        }
+
+        this.shuffle = true;
     }
 
     /**
@@ -86,6 +101,10 @@ public class UpnpEntryQueue {
     public synchronized @Nullable UpnpEntry next() {
         currentIndex++;
         if (currentIndex >= size()) {
+            if (shuffle && repeat) {
+                currentIndex = -1;
+                shuffle();
+            }
             currentIndex = repeat ? 0 : -1;
         }
         return currentIndex >= 0 ? get(currentIndex) : null;
@@ -99,9 +118,20 @@ public class UpnpEntryQueue {
     public synchronized @Nullable UpnpEntry previous() {
         currentIndex--;
         if (currentIndex < 0) {
-            currentIndex = repeat ? size() - 1 : -1;
+            if (shuffle && repeat) {
+                currentIndex = -1;
+                shuffle();
+            }
+            currentIndex = repeat ? (size() - 1) : -1;
         }
         return currentIndex >= 0 ? get(currentIndex) : null;
+    }
+
+    /**
+     * @return the index of the current element in the queue.
+     */
+    public int index() {
+        return currentIndex;
     }
 
     /**
@@ -123,7 +153,7 @@ public class UpnpEntryQueue {
     public synchronized int previousIndex() {
         int index = currentIndex - 1;
         if (index < 0) {
-            index = repeat ? size() - 1 : -1;
+            index = repeat ? (size() - 1) : -1;
         }
         return index;
     }
@@ -167,10 +197,13 @@ public class UpnpEntryQueue {
     }
 
     /**
-     * Reset the queue position indexes to the the start of the queue.
+     * Reset the queue position to before the start of the queue (-1).
      */
     public synchronized void resetIndex() {
         currentIndex = -1;
+        if (shuffle) {
+            shuffle();
+        }
     }
 
     /**
