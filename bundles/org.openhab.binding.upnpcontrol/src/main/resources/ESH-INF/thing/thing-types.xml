@@ -57,6 +57,11 @@
 			<channel id="currentid" typeId="currentid"/>
 			<channel id="browse" typeId="browse"/>
 			<channel id="search" typeId="search"/>
+			
+			<channel id="playlist" typeId="playlist"/>
+            <channel id="restore" typeId="restore"/>
+			<channel id="save" typeId="save"/>
+			<channel id="append" typeId="append"/>
 
 			<channel id="volume" typeId="system.volume"/>
 			<channel id="mute" typeId="system.mute"/>
@@ -184,4 +189,27 @@
 			Examples: dc:title contains "song", dc:creator contains "SpringSteen", unp:class = "object.item.audioItem",
 			upnp:album contains "Born in"</description>
 	</channel-type>
+	<channel-type id="playlist">
+	   <item-type>String</item-type>
+	   <label>Playlist</label>
+	   <description>Playlist for selection</description>
+	</channel-type>
+    <channel-type id="restore">
+       <item-type>Switch</item-type>
+        <label>Restore playlist</label>
+        <description>Restore the selected playlist</description>
+        <autoUpdatePolicy>veto</autoUpdatePolicy>
+    </channel-type>
+    <channel-type id="save">
+       <item-type>Switch</item-type>
+        <label>Save new playlist</label>
+        <description>Save the current selection to the selected playlist</description>
+        <autoUpdatePolicy>veto</autoUpdatePolicy>
+    </channel-type>
+    <channel-type id="append">
+       <item-type>Switch</item-type>
+       <label>Append to playlist</label>
+       <description>Append the current selection to the selected playlist</description>
+        <autoUpdatePolicy>veto</autoUpdatePolicy>
+    </channel-type>
 </thing:thing-descriptions>

@@ -12,11 +12,13 @@
  */
 package org.openhab.binding.upnpcontrol.internal;
 
+import java.io.File;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.smarthome.config.core.ConfigConstants;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 
 /**
@@ -66,6 +68,10 @@ public class UpnpControlBindingConstants {
     public static final String BROWSE = "browse";
     public static final String SEARCH = "search";
     public static final String SERVE = "serve";
+    public static final String PLAYLIST = "playlist";
+    public static final String RESTORE = "restore";
+    public static final String SAVE = "save";
+    public static final String APPEND = "append";
 
     // channels that are duplicated on server to control current renderer
     public static final Set<String> SERVER_CONTROL_CHANNELS = Stream.of(VOLUME, MUTE, CONTROL, STOP)
@@ -78,4 +84,8 @@ public class UpnpControlBindingConstants {
 
     // Master volume and mute identifier
     public static final String UPNP_MASTER = "Master";
+
+    public static final String PLAYLIST_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
+            + File.separator;
+    public static final String PLAYLIST_FILE_EXTENSION = ".playlist";
 }

@@ -1060,9 +1060,9 @@ public class UpnpRendererHandler extends UpnpHandler {
      *
      * @param queue
      */
-    public void registerQueue(ArrayList<UpnpEntry> queue) {
+    public void registerQueue(UpnpEntryQueue queue) {
         logger.debug("Registering queue on renderer {}", thing.getLabel());
-        currentQueue = new UpnpEntryQueue(queue);
+        currentQueue = queue;
         currentQueue.setRepeat(repeat);
         currentQueue.setShuffle(shuffle);
         if (playingQueue) {

@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.eclipse.smarthome.core.library.types.OnOffType;
 import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -53,6 +54,7 @@ import org.openhab.binding.upnpcontrol.internal.UpnpControlHandlerFactory;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
+import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
 import org.openhab.binding.upnpcontrol.internal.UpnpProtocolMatcher;
 import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlServerConfiguration;
@@ -78,8 +80,11 @@ public class UpnpServerHandler extends UpnpHandler {
     private volatile @Nullable UpnpRendererHandler currentRendererHandler;
     private volatile List<StateOption> rendererStateOptionList = Collections.synchronizedList(new ArrayList<>());
 
+    private volatile List<StateOption> playlistStateOptionList = Collections.synchronizedList(new ArrayList<>());
+
     private @NonNullByDefault({}) ChannelUID rendererChannelUID;
     private @NonNullByDefault({}) ChannelUID currentSelectionChannelUID;
+    private @NonNullByDefault({}) ChannelUID playlistChannelUID;
 
     private volatile @Nullable CompletableFuture<Boolean> isBrowsing;
 
@@ -89,6 +94,8 @@ public class UpnpServerHandler extends UpnpHandler {
     private List<UpnpEntry> entries = Collections.synchronizedList(new ArrayList<>());
     // store parents in hierarchy separately to be able to move up in directory structure
     private ConcurrentMap<String, UpnpEntry> parentMap = new ConcurrentHashMap<>();
+
+    private volatile String playlistName = "";
 
     private UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider;
     private UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider;
@@ -131,6 +138,14 @@ public class UpnpServerHandler extends UpnpHandler {
                     "Channel " + BROWSE + " not defined");
             return;
         }
+        Channel playlistChannel = thing.getChannel(PLAYLIST);
+        if (playlistChannel != null) {
+            playlistChannelUID = playlistChannel.getUID();
+        } else {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                    "Channel " + PLAYLIST + " not defined");
+            return;
+        }
 
         initDevice();
     }
@@ -162,6 +177,7 @@ public class UpnpServerHandler extends UpnpHandler {
                 getProtocolInfo();
 
                 browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+                updatePlaylistsList();
 
                 updateStatus(ThingStatus.ONLINE);
             }
@@ -178,100 +194,33 @@ public class UpnpServerHandler extends UpnpHandler {
 
         switch (channelUID.getId()) {
             case UPNPRENDERER:
-                UpnpRendererHandler renderer = null;
-                UpnpRendererHandler previousRenderer = currentRendererHandler;
-                if (command instanceof StringType) {
-                    renderer = (upnpRenderers.get(((StringType) command).toString()));
-                    currentRendererHandler = renderer;
-                    if (config.filter) {
-                        // only refresh title list if filtering by renderer capabilities
-                        browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
-                    }
-                }
-
-                if ((renderer != null) && !renderer.equals(previousRenderer)) {
-                    if (previousRenderer != null) {
-                        previousRenderer.unsetServerHandler();
-                    }
-                    renderer.setServerHandler(this);
-
-                    Channel channel;
-                    if ((channel = thing.getChannel(VOLUME)) != null) {
-                        handleCommand(channel.getUID(), RefreshType.REFRESH);
-                    }
-                    if ((channel = thing.getChannel(MUTE)) != null) {
-                        handleCommand(channel.getUID(), RefreshType.REFRESH);
-                    }
-                    if ((channel = thing.getChannel(CONTROL)) != null) {
-                        handleCommand(channel.getUID(), RefreshType.REFRESH);
-                    }
-                }
+                handleCommandUpnpRenderer(channelUID, command);
                 break;
             case CURRENTID:
-                String currentId = "";
-                if (command instanceof StringType) {
-                    currentId = String.valueOf(command);
-                    logger.debug("Setting currentId to {}", currentId);
-                    if (!currentId.isEmpty()) {
-                        browse(currentId, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
-                    }
-                } else if (command instanceof RefreshType) {
-                    currentId = currentEntry.getId();
-                    updateState(channelUID, StringType.valueOf(currentId));
-                }
+                handleCommandCurrentId(channelUID, command);
                 break;
             case BROWSE:
-                if (command instanceof StringType) {
-                    String browseTarget = command.toString();
-                    if (browseTarget != null) {
-                        if (!UP.equals(browseTarget)) {
-                            final String target = browseTarget;
-                            synchronized (entries) {
-                                Optional<UpnpEntry> current = entries.stream()
-                                        .filter(entry -> target.equals(entry.getId())).findFirst();
-                                if (current.isPresent()) {
-                                    currentEntry = current.get();
-                                } else {
-                                    logger.info("Trying to browse invalid target {}", browseTarget);
-                                    browseTarget = UP; // move up on invalid target
-                                }
-                            }
-                        }
-                        if (UP.equals(browseTarget)) {
-                            // Move up in tree
-                            browseTarget = currentEntry.getParentId();
-                            if (browseTarget.isEmpty() || !parentMap.containsKey(browseTarget)) {
-                                // No parent found, so make it the root directory
-                                browseTarget = DIRECTORY_ROOT;
-                            }
-                            currentEntry = parentMap.get(browseTarget);
-                        }
-                        logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
-                        updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
-                        logger.debug("Browse target {}", browseTarget);
-                        browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
-                    }
-                }
+                handleCommandBrowse(command);
                 break;
             case SEARCH:
-                if (command instanceof StringType) {
-                    String criteria = command.toString();
-                    if (criteria != null) {
-                        String searchContainer = "";
-                        if (currentEntry.isContainer()) {
-                            searchContainer = currentEntry.getId();
-                        } else {
-                            searchContainer = currentEntry.getParentId();
-                        }
-                        if (searchContainer.isEmpty()) {
-                            // No parent found, so make it the root directory
-                            searchContainer = DIRECTORY_ROOT;
-                        }
-                        logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
-                        updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
-                        logger.debug("Search container {} for {}", searchContainer, criteria);
-                        search(searchContainer, criteria, "*", "0", "0", config.sortcriteria);
-                    }
+                handleCommandSearch(command);
+                break;
+            case PLAYLIST:
+                handleCommandPlaylist(command);
+                break;
+            case RESTORE:
+                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+                    restorePlayList();
+                }
+                break;
+            case SAVE:
+                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+                    savePlaylist(false);
+                }
+                break;
+            case APPEND:
+                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+                    savePlaylist(true);
                 }
                 break;
             case VOLUME:
@@ -279,16 +228,146 @@ public class UpnpServerHandler extends UpnpHandler {
             case CONTROL:
             case STOP:
                 // Pass these on to the media renderer thing if one is selected
-                String channelId = channelUID.getId();
-                UpnpRendererHandler handler = currentRendererHandler;
-                Channel channel;
-                if ((handler != null) && (channel = handler.getThing().getChannel(channelUID.getId())) != null) {
-                    handler.handleCommand(channel.getUID(), command);
-                } else if (!STOP.equals(channelId)) {
-                    updateState(channelId, UnDefType.UNDEF);
-                }
+                handleCommandInRenderer(channelUID, command);
                 break;
         }
+    }
+
+    private void handleCommandUpnpRenderer(ChannelUID channelUID, Command command) {
+        UpnpRendererHandler renderer = null;
+        UpnpRendererHandler previousRenderer = currentRendererHandler;
+        if (command instanceof StringType) {
+            renderer = (upnpRenderers.get(((StringType) command).toString()));
+            currentRendererHandler = renderer;
+            if (config.filter) {
+                // only refresh title list if filtering by renderer capabilities
+                browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+            }
+        }
+
+        updateState(channelUID, (State) command);
+
+        if ((renderer != null) && !renderer.equals(previousRenderer)) {
+            if (previousRenderer != null) {
+                previousRenderer.unsetServerHandler();
+            }
+            renderer.setServerHandler(this);
+
+            Channel channel;
+            if ((channel = thing.getChannel(VOLUME)) != null) {
+                handleCommand(channel.getUID(), RefreshType.REFRESH);
+            }
+            if ((channel = thing.getChannel(MUTE)) != null) {
+                handleCommand(channel.getUID(), RefreshType.REFRESH);
+            }
+            if ((channel = thing.getChannel(CONTROL)) != null) {
+                handleCommand(channel.getUID(), RefreshType.REFRESH);
+            }
+        }
+    }
+
+    private void handleCommandCurrentId(ChannelUID channelUID, Command command) {
+        String currentId = "";
+        if (command instanceof StringType) {
+            currentId = String.valueOf(command);
+            logger.debug("Setting currentId to {}", currentId);
+            if (!currentId.isEmpty()) {
+                browse(currentId, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+            }
+        } else if (command instanceof RefreshType) {
+            currentId = currentEntry.getId();
+            updateState(channelUID, StringType.valueOf(currentId));
+        }
+    }
+
+    private void handleCommandBrowse(Command command) {
+        if (command instanceof StringType) {
+            String browseTarget = command.toString();
+            if (browseTarget != null) {
+                if (!UP.equals(browseTarget)) {
+                    final String target = browseTarget;
+                    synchronized (entries) {
+                        Optional<UpnpEntry> current = entries.stream().filter(entry -> target.equals(entry.getId()))
+                                .findFirst();
+                        if (current.isPresent()) {
+                            currentEntry = current.get();
+                        } else {
+                            logger.info("Trying to browse invalid target {}", browseTarget);
+                            browseTarget = UP; // move up on invalid target
+                        }
+                    }
+                }
+                if (UP.equals(browseTarget)) {
+                    // Move up in tree
+                    browseTarget = currentEntry.getParentId();
+                    if (browseTarget.isEmpty() || !parentMap.containsKey(browseTarget)) {
+                        // No parent found, so make it the root directory
+                        browseTarget = DIRECTORY_ROOT;
+                    }
+                    currentEntry = parentMap.get(browseTarget);
+                }
+                logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
+                updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
+                logger.debug("Browse target {}", browseTarget);
+                browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+            }
+        }
+    }
+
+    private void handleCommandSearch(Command command) {
+        if (command instanceof StringType) {
+            String criteria = command.toString();
+            if (criteria != null) {
+                String searchContainer = "";
+                if (currentEntry.isContainer()) {
+                    searchContainer = currentEntry.getId();
+                } else {
+                    searchContainer = currentEntry.getParentId();
+                }
+                if (searchContainer.isEmpty()) {
+                    // No parent found, so make it the root directory
+                    searchContainer = DIRECTORY_ROOT;
+                }
+                logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
+                updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
+                logger.debug("Search container {} for {}", searchContainer, criteria);
+                search(searchContainer, criteria, "*", "0", "0", config.sortcriteria);
+            }
+        }
+    }
+
+    private void handleCommandPlaylist(Command command) {
+        if (command instanceof StringType) {
+            playlistName = command.toString();
+        }
+    }
+
+    private void handleCommandInRenderer(ChannelUID channelUID, Command command) {
+        String channelId = channelUID.getId();
+        UpnpRendererHandler handler = currentRendererHandler;
+        Channel channel;
+        if ((handler != null) && (channel = handler.getThing().getChannel(channelId)) != null) {
+            handler.handleCommand(channel.getUID(), command);
+        } else if (!STOP.equals(channelId)) {
+            updateState(channelId, UnDefType.UNDEF);
+        }
+    }
+
+    private void savePlaylist(boolean append) {
+        List<UpnpEntry> mediaQueue = new ArrayList<>();
+        mediaQueue.addAll(entries);
+        if (mediaQueue.isEmpty() && !currentEntry.isContainer()) {
+            mediaQueue.add(currentEntry);
+        }
+        UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
+        queue.persistQueue(playlistName, append);
+        updatePlaylistsList();
+    }
+
+    private void restorePlayList() {
+        UpnpEntryQueue queue = new UpnpEntryQueue();
+        queue.restoreQueue(playlistName);
+        updateTitleSelection(queue.getEntryList());
     }
 
     /**
@@ -322,6 +401,12 @@ public class UpnpServerHandler extends UpnpHandler {
         }
         updateStateDescription(rendererChannelUID, rendererStateOptionList);
         logger.debug("Renderer option {} removed from {}", key, thing.getLabel());
+    }
+
+    private void updatePlaylistsList() {
+        playlistStateOptionList = UpnpEntryQueue.playLists().stream().map(p -> (new StateOption(p, p)))
+                .collect(Collectors.toList());
+        updateStateDescription(playlistChannelUID, playlistStateOptionList);
     }
 
     private void updateTitleSelection(List<UpnpEntry> titleList) {
@@ -554,7 +639,7 @@ public class UpnpServerHandler extends UpnpHandler {
     private void serveMedia() {
         UpnpRendererHandler handler = currentRendererHandler;
         if (handler != null) {
-            ArrayList<UpnpEntry> mediaQueue = new ArrayList<>();
+            List<UpnpEntry> mediaQueue = Collections.synchronizedList(new ArrayList<>());
             mediaQueue.addAll(filterEntries(entries, false));
             if (mediaQueue.isEmpty() && !currentEntry.isContainer()) {
                 mediaQueue.add(currentEntry);
@@ -563,7 +648,7 @@ public class UpnpServerHandler extends UpnpHandler {
                 logger.debug("Nothing to serve from server {} to renderer {}", thing.getLabel(),
                         handler.getThing().getLabel());
             } else {
-                handler.registerQueue(mediaQueue);
+                handler.registerQueue(new UpnpEntryQueue(mediaQueue, config.udn));
                 logger.debug("Serving media queue {} from server {} to renderer {}", mediaQueue, thing.getLabel(),
                         handler.getThing().getLabel());
             }
