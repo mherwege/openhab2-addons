@@ -64,6 +64,7 @@
             <channel id="restore" typeId="restore"/>
 			<channel id="save" typeId="save"/>
 			<channel id="append" typeId="append"/>
+            <channel id="delete" typeId="delete"/>
 
 			<channel id="volume" typeId="system.volume"/>
 			<channel id="mute" typeId="system.mute"/>
@@ -222,6 +223,12 @@
        <item-type>Switch</item-type>
        <label>Append to playlist</label>
        <description>Append the current selection to the selected playlist</description>
+        <autoUpdatePolicy>veto</autoUpdatePolicy>
+    </channel-type>
+    <channel-type id="delete">
+       <item-type>Switch</item-type>
+       <label>Delete playlist</label>
+       <description>Delete the current playlist</description>
         <autoUpdatePolicy>veto</autoUpdatePolicy>
     </channel-type>
 </thing:thing-descriptions>

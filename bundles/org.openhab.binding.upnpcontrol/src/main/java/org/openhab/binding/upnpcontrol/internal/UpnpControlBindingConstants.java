@@ -74,6 +74,7 @@ public class UpnpControlBindingConstants {
     public static final String RESTORE = "restore";
     public static final String SAVE = "save";
     public static final String APPEND = "append";
+    public static final String DELETE = "delete";
 
     // channels that are duplicated on server to control current renderer
     public static final Set<String> SERVER_CONTROL_CHANNELS = Stream.of(VOLUME, MUTE, CONTROL, STOP)

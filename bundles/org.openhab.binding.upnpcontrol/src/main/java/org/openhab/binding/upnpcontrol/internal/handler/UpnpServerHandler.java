@@ -228,6 +228,11 @@ public class UpnpServerHandler extends UpnpHandler {
                     savePlaylist(true);
                 }
                 break;
+            case DELETE:
+                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+                    deletePlaylist();
+                }
+                break;
             case VOLUME:
             case MUTE:
             case CONTROL:
@@ -387,6 +392,13 @@ public class UpnpServerHandler extends UpnpHandler {
         updateTitleSelection(queue.getEntryList());
     }
 
+    private void deletePlaylist() {
+        UpnpEntryQueue.deletePlaylist(playlistName, configuration.path);
+        updatePlaylistsList();
+        updateState(PLAYLIST, UnDefType.UNDEF);
+        updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
+    }
+
     /**
      * Add a renderer to the renderer channel state option list.
      * This method is called from the {@link UpnpControlHandlerFactory} class when creating a renderer handler.
@@ -421,8 +433,8 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void updatePlaylistsList() {
-        playlistStateOptionList = UpnpEntryQueue.playLists().stream().map(p -> (new StateOption(p, p)))
-                .collect(Collectors.toList());
+        playlistStateOptionList = UpnpEntryQueue.playlists(configuration.path).stream()
+                .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
         updateStateDescription(playlistChannelUID, playlistStateOptionList);
     }
 

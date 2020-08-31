@@ -12,7 +12,7 @@
  */
 package org.openhab.binding.upnpcontrol.internal;
 
-import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
+import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.PLAYLIST_FILE_EXTENSION;
 
 import java.io.File;
 import java.io.IOException;
@@ -266,7 +266,7 @@ public class UpnpEntryQueue {
     /**
      * Persist queue as a playlist with name "current"
      *
-     * @param path directory to persist playlist into
+     * @param path of playlist directory
      */
     public void persistQueue(@Nullable String path) {
         persistQueue("current", false, path);
@@ -277,7 +277,7 @@ public class UpnpEntryQueue {
      *
      * @param name of the playlist
      * @param append to the playlist if it already exists
-     * @param path directory to persist playlist into
+     * @param path of playlist directory
      */
     public synchronized void persistQueue(String name, boolean append, @Nullable String path) {
         if (path == null) {
@@ -346,7 +346,7 @@ public class UpnpEntryQueue {
      *
      * @param name
      * @param udn of the server the playlist entries were created on, all entries when null
-     * @param path directory containing playlist to restore
+     * @param path of playlist directory
      */
     public synchronized void restoreQueue(String name, @Nullable String udn, @Nullable String path) {
         if (path == null) {
@@ -389,13 +389,33 @@ public class UpnpEntryQueue {
     /**
      * Get names of saved playlists.
      *
+     * @param path of playlist directory
      * @return playlists
      */
-    public static List<String> playLists() {
-        File playlistDir = new File(DEFAULT_PATH);
+    public static List<String> playlists(@Nullable String path) {
+        if (path == null) {
+            return Collections.emptyList();
+        }
+
+        File playlistDir = new File(path);
         File[] files = playlistDir.listFiles((dir, name) -> name.toLowerCase().endsWith(PLAYLIST_FILE_EXTENSION));
         List<String> playlists = (Arrays.asList(files)).stream()
                 .map(p -> p.getName().replace(PLAYLIST_FILE_EXTENSION, "")).collect(Collectors.toList());
         return playlists;
+    }
+
+    /**
+     * Get names of saved playlists.
+     *
+     * @param name of playlist to delete
+     * @param path of playlist directory
+     */
+    public static void deletePlaylist(String name, @Nullable String path) {
+        if (path == null) {
+            return;
+        }
+
+        File playlist = new File(path + name);
+        playlist.delete();
     }
 }
