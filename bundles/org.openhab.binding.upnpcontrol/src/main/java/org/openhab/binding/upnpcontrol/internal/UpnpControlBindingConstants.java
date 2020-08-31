@@ -51,6 +51,7 @@ public class UpnpControlBindingConstants {
     public static final String STOP = "stop";
     public static final String REPEAT = "repeat";
     public static final String SHUFFLE = "shuffle";
+    public static final String URI = "uri";
     public static final String TITLE = "title";
     public static final String ALBUM = "album";
     public static final String ALBUM_ART = "albumart";
@@ -78,6 +79,9 @@ public class UpnpControlBindingConstants {
     public static final Set<String> SERVER_CONTROL_CHANNELS = Stream.of(VOLUME, MUTE, CONTROL, STOP)
             .collect(Collectors.toSet());
 
+    // Binding config properties
+    public static final String PATH = "path";
+
     // Thing config properties
     public static final String CONFIG_FILTER = "filter";
     public static final String SORT_CRITERIA = "sortcriteria";
@@ -86,7 +90,7 @@ public class UpnpControlBindingConstants {
     // Master volume and mute identifier
     public static final String UPNP_MASTER = "Master";
 
-    public static final String STORAGE_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
+    public static final String DEFAULT_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
             + File.separator;
     public static final String PLAYLIST_FILE_EXTENSION = ".lst";
     public static final String FAVOURITE_FILE_EXTENSION = ".fav";

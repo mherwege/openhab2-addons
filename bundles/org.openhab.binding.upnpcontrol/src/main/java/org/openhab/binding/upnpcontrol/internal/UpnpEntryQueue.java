@@ -392,7 +392,7 @@ public class UpnpEntryQueue {
      * @return playlists
      */
     public static List<String> playLists() {
-        File playlistDir = new File(STORAGE_PATH);
+        File playlistDir = new File(DEFAULT_PATH);
         File[] files = playlistDir.listFiles((dir, name) -> name.toLowerCase().endsWith(PLAYLIST_FILE_EXTENSION));
         List<String> playlists = (Arrays.asList(files)).stream()
                 .map(p -> p.getName().replace(PLAYLIST_FILE_EXTENSION, "")).collect(Collectors.toList());

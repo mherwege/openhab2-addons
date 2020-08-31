@@ -583,6 +583,9 @@ public class UpnpRendererHandler extends UpnpHandler {
                     case SHUFFLE:
                         updateState(channelUID, OnOffType.from(shuffle));
                         break;
+                    case URI:
+                        updateState(channelUID, StringType.valueOf(nowPlayingUri));
+                        break;
                     case TRACK_POSITION:
                         updateState(channelUID, new QuantityType<>(trackPosition, SmartHomeUnits.SECOND));
                         break;
@@ -647,6 +650,11 @@ public class UpnpRendererHandler extends UpnpHandler {
                         }
                         updateState(channelUID, (State) command);
                         break;
+                    case URI:
+                        if (command instanceof StringType) {
+                            setCurrentURI(command.toString(), "");
+                            play();
+                        }
                     case TRACK_POSITION:
                         if (command instanceof QuantityType<?>) {
                             QuantityType<?> position = ((QuantityType<?>) command).toUnit(SmartHomeUnits.SECOND);

@@ -18,6 +18,7 @@
 			<channel id="repeat" typeId="repeat"/>
 			<channel id="shuffle" typeId="shuffle"/>
 
+            <channel id="uri" typeId="uri"/>
 			<channel id="title" typeId="system.media-title"/>
 			<channel id="album" typeId="album"/>
 			<channel id="albumart" typeId="albumart"/>
@@ -112,6 +113,11 @@
 		<item-type>Switch</item-type>
 		<label>Shuffle</label>
 		<description>Random shuffle the selection</description>
+	</channel-type>
+	<channel-type id="uri">
+	   <item-type>String</item-type>
+	   <label>URI</label>
+	   <description>Now playing URI</description>
 	</channel-type>
 	<channel-type id="album">
 		<item-type>String</item-type>
