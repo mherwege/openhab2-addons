@@ -16,11 +16,9 @@ import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstan
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +34,6 @@ import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
-import com.google.gson.reflect.TypeToken;
 
 /**
  * The class {@link UpnpEntryQueue} represents a queue of UPnP media entries to be played on a renderer. It keeps track
@@ -58,14 +55,22 @@ public class UpnpEntryQueue {
 
     private volatile int currentIndex = -1;
 
-    private volatile Map<String, List<UpnpEntry>> masterList = Collections.synchronizedMap(new HashMap<>());
+    private class Playlist {
+        String name;
+        volatile Map<String, List<UpnpEntry>> masterList;
+
+        Playlist(String name, Map<String, List<UpnpEntry>> masterList) {
+            this.name = name;
+            this.masterList = masterList;
+        }
+    }
+
+    private volatile Playlist playlist;
 
     private volatile List<UpnpEntry> currentQueue;
     private volatile List<UpnpEntry> shuffledQueue = Collections.emptyList();
 
     private final Gson gson = new Gson();
-    private final Type masterListType = new TypeToken<Map<String, List<UpnpEntry>>>() {
-    }.getType();
 
     public UpnpEntryQueue() {
         this(Collections.emptyList());
@@ -85,8 +90,10 @@ public class UpnpEntryQueue {
      */
     public UpnpEntryQueue(List<UpnpEntry> queue, @Nullable String udn) {
         String serverUdn = (udn != null) ? udn : "";
+        Map<String, List<UpnpEntry>> masterList = Collections.synchronizedMap(new HashMap<>());
         masterList.clear();
         masterList.put(serverUdn, queue);
+        playlist = new Playlist("", masterList);
         currentQueue = queue.stream().filter(e -> !e.isContainer()).collect(Collectors.toList());
     }
 
@@ -298,10 +305,10 @@ public class UpnpEntryQueue {
                     logger.debug("Reading contents of {} for appending", file.getAbsolutePath());
                     final byte[] contents = Files.readAllBytes(file.toPath());
                     json = new String(contents, StandardCharsets.UTF_8);
-                    Map<String, List<UpnpEntry>> persistList = gson.fromJson(json, masterListType);
+                    Map<String, List<UpnpEntry>> persistList = gson.fromJson(json, Playlist.class).masterList;
 
                     // Merging masterList with persistList, overwriting persistList UpnpEntry objects with same id
-                    masterList
+                    playlist.masterList
                             .forEach(
                                     (u, list) -> persistList.merge(u, list,
                                             (oldlist, newlist) -> new ArrayList<>(Stream.of(oldlist, newlist)
@@ -310,7 +317,7 @@ public class UpnpEntryQueue {
                                                             (UpnpEntry oldentry, UpnpEntry newentry) -> newentry))
                                                     .values())));
 
-                    json = gson.toJson(persistList);
+                    json = gson.toJson(new Playlist(name, persistList));
                 } catch (JsonParseException | UnsupportedOperationException e) {
                     logger.debug("Could not append, JsonParseException reading {}: {}", file.toPath(), e.getMessage(),
                             e);
@@ -320,7 +327,8 @@ public class UpnpEntryQueue {
                     return;
                 }
             } else {
-                json = gson.toJson(masterList);
+                playlist.name = name;
+                json = gson.toJson(playlist);
             }
 
             final byte[] contents = json.getBytes(StandardCharsets.UTF_8);
@@ -362,9 +370,9 @@ public class UpnpEntryQueue {
                 final byte[] contents = Files.readAllBytes(file.toPath());
                 final String json = new String(contents, StandardCharsets.UTF_8);
 
-                masterList = Collections.synchronizedMap(gson.fromJson(json, masterListType));
+                playlist = gson.fromJson(json, Playlist.class);
 
-                Stream<Entry<String, List<UpnpEntry>>> stream = masterList.entrySet().stream();
+                Stream<Entry<String, List<UpnpEntry>>> stream = playlist.masterList.entrySet().stream();
                 if (udn != null) {
                     stream = stream.filter(u -> u.getKey().equals(udn));
                 }
@@ -384,38 +392,5 @@ public class UpnpEntryQueue {
      */
     public List<UpnpEntry> getEntryList() {
         return currentQueue;
-    }
-
-    /**
-     * Get names of saved playlists.
-     *
-     * @param path of playlist directory
-     * @return playlists
-     */
-    public static List<String> playlists(@Nullable String path) {
-        if (path == null) {
-            return Collections.emptyList();
-        }
-
-        File playlistDir = new File(path);
-        File[] files = playlistDir.listFiles((dir, name) -> name.toLowerCase().endsWith(PLAYLIST_FILE_EXTENSION));
-        List<String> playlists = (Arrays.asList(files)).stream()
-                .map(p -> p.getName().replace(PLAYLIST_FILE_EXTENSION, "")).collect(Collectors.toList());
-        return playlists;
-    }
-
-    /**
-     * Get names of saved playlists.
-     *
-     * @param name of playlist to delete
-     * @param path of playlist directory
-     */
-    public static void deletePlaylist(String name, @Nullable String path) {
-        if (path == null) {
-            return;
-        }
-
-        File playlist = new File(path + name);
-        playlist.delete();
     }
 }

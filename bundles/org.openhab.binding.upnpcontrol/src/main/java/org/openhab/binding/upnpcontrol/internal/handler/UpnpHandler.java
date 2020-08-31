@@ -43,10 +43,18 @@ import org.eclipse.smarthome.core.thing.binding.builder.ThingBuilder;
 import org.eclipse.smarthome.core.thing.type.ChannelType;
 import org.eclipse.smarthome.core.thing.type.ChannelTypeBuilder;
 import org.eclipse.smarthome.core.thing.type.ChannelTypeUID;
+import org.eclipse.smarthome.core.types.CommandDescription;
+import org.eclipse.smarthome.core.types.CommandDescriptionBuilder;
+import org.eclipse.smarthome.core.types.CommandOption;
+import org.eclipse.smarthome.core.types.StateDescription;
+import org.eclipse.smarthome.core.types.StateDescriptionFragmentBuilder;
+import org.eclipse.smarthome.core.types.StateOption;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOParticipant;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelTypeProvider;
+import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
+import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlConfiguration;
 import org.slf4j.Logger;
@@ -102,14 +110,22 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     };
     protected volatile boolean upnpSubscribed;
 
+    protected UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider;
+    protected UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider;
+
     protected @Nullable UpnpChannelTypeProvider channelTypeProvider;
 
-    public UpnpHandler(Thing thing, UpnpIOService upnpIOService, UpnpControlBindingConfiguration configuration) {
+    public UpnpHandler(Thing thing, UpnpIOService upnpIOService, UpnpControlBindingConfiguration configuration,
+            UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider,
+            UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider) {
         super(thing);
 
         this.service = upnpIOService;
 
         this.configuration = configuration;
+
+        this.upnpStateDescriptionProvider = upnpStateDescriptionProvider;
+        this.upnpCommandDescriptionProvider = upnpCommandDescriptionProvider;
     }
 
     @Override
@@ -351,6 +367,18 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     @Override
     public @Nullable String getUDN() {
         return config.udn;
+    }
+
+    protected void updateStateDescription(ChannelUID channelUID, List<StateOption> stateOptionList) {
+        StateDescription stateDescription = StateDescriptionFragmentBuilder.create().withReadOnly(false)
+                .withOptions(stateOptionList).build().toStateDescription();
+        upnpStateDescriptionProvider.setDescription(channelUID, stateDescription);
+    }
+
+    protected void updateCommandDescription(ChannelUID channelUID, List<CommandOption> commandOptionList) {
+        CommandDescription commandDescription = CommandDescriptionBuilder.create().withCommandOptions(commandOptionList)
+                .build();
+        upnpCommandDescriptionProvider.setDescription(channelUID, commandDescription);
     }
 
     /**

@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -57,14 +58,19 @@ import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
+import org.eclipse.smarthome.core.types.StateOption;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.net.http.HttpUtil;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSink;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
+import org.openhab.binding.upnpcontrol.internal.UpnpControlUtil;
+import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
+import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
+import org.openhab.binding.upnpcontrol.internal.UpnpFavorite;
 import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlRendererConfiguration;
@@ -99,6 +105,10 @@ public class UpnpRendererHandler extends UpnpHandler {
     protected @NonNullByDefault({}) UpnpControlRendererConfiguration config;
     private @Nullable UpnpRenderingControlConfiguration renderingControlConfiguration;
 
+    private volatile List<StateOption> favoriteStateOptionList = Collections.synchronizedList(new ArrayList<>());
+
+    private @NonNullByDefault({}) ChannelUID favoriteSelectChannelUID;
+
     private volatile String transportState = "";
 
     private volatile PercentType soundVolume = new PercentType();
@@ -110,6 +120,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile @Nullable UpnpEntry currentEntry = null;
     private volatile @Nullable UpnpEntry nextEntry = null;
     private volatile String nowPlayingUri = ""; // used to block waiting for setting URI when it is the same as current
+    private volatile String favoriteName = "";
     private volatile boolean playerStopped;
     private volatile boolean playing;
     private volatile boolean playingQueue;
@@ -121,8 +132,10 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile @Nullable ScheduledFuture<?> trackPositionRefresh;
 
     public UpnpRendererHandler(Thing thing, UpnpIOService upnpIOService, UpnpAudioSinkReg audioSinkReg,
+            UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider,
+            UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider,
             UpnpControlBindingConfiguration configuration) {
-        super(thing, upnpIOService, configuration);
+        super(thing, upnpIOService, configuration, upnpStateDescriptionProvider, upnpCommandDescriptionProvider);
 
         serviceSubscriptions.add("AVTransport");
         serviceSubscriptions.add("RenderingControl");
@@ -139,6 +152,15 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
 
         logger.debug("Initializing handler for media renderer device {}", thing.getLabel());
+
+        Channel favoriteSelectChannel = thing.getChannel(FAVORITE_SELECT);
+        if (favoriteSelectChannel != null) {
+            favoriteSelectChannelUID = favoriteSelectChannel.getUID();
+        } else {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                    "Channel " + FAVORITE_SELECT + " not defined");
+            return;
+        }
 
         initDevice();
     }
@@ -655,6 +677,43 @@ public class UpnpRendererHandler extends UpnpHandler {
                             setCurrentURI(command.toString(), "");
                             play();
                         }
+                    case FAVORITE_SELECT:
+                        if (command instanceof StringType) {
+                            favoriteName = command.toString();
+                            updateState(PLAYLIST, StringType.valueOf(favoriteName));
+                            UpnpFavorite favorite = new UpnpFavorite(favoriteName, configuration.path);
+                            String uri = favorite.getUri();
+                            UpnpEntry entry = favorite.getUpnpEntry();
+                            if (!uri.isEmpty()) {
+                                String metadata = "";
+                                if (entry != null) {
+                                    metadata = UpnpXMLParser.compileMetadataString(entry);
+                                }
+                                setCurrentURI(uri, metadata);
+                                play();
+                            }
+                        }
+                        break;
+                    case FAVORITE:
+                        if (command instanceof StringType) {
+                            favoriteName = command.toString();
+                            if (favoriteStateOptionList.contains(new StateOption(favoriteName, favoriteName))) {
+                                updateState(PLAYLIST_SELECT, StringType.valueOf(favoriteName));
+                            } else {
+                                updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
+                            }
+                        }
+                        break;
+                    case FAVORITE_SAVE:
+                        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
+                            saveFavorite();
+                        }
+                        break;
+                    case FAVORITE_DELETE:
+                        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
+                            deleteFavorite();
+                        }
+                        break;
                     case TRACK_POSITION:
                         if (command instanceof QuantityType<?>) {
                             QuantityType<?> position = ((QuantityType<?>) command).toUnit(SmartHomeUnits.SECOND);
@@ -675,6 +734,26 @@ public class UpnpRendererHandler extends UpnpHandler {
                 }
             }
         }
+    }
+
+    private void saveFavorite() {
+        UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
+        favorite.saveFavorite(favoriteName, configuration.path);
+        updateFavoritesList();
+        updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
+    }
+
+    private void deleteFavorite() {
+        UpnpControlUtil.deleteFavorite(favoriteName, configuration.path);
+        updateFavoritesList();
+        updateState(FAVORITE, UnDefType.UNDEF);
+        updateState(FAVORITE_SELECT, UnDefType.UNDEF);
+    }
+
+    private void updateFavoritesList() {
+        favoriteStateOptionList = UpnpControlUtil.favorites(configuration.path).stream()
+                .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
+        updateStateDescription(favoriteSelectChannelUID, favoriteStateOptionList);
     }
 
     /**
@@ -922,6 +1001,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
 
         nowPlayingUri = uri;
+        updateState(URI, StringType.valueOf(uri));
 
         if (!uri.equals(currentUri)) {
             if (uri.equals(nextUri) && (next != null)) {

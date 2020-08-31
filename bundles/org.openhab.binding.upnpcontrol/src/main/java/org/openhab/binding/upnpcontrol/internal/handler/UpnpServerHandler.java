@@ -40,17 +40,14 @@ import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.types.Command;
-import org.eclipse.smarthome.core.types.CommandDescription;
-import org.eclipse.smarthome.core.types.CommandDescriptionBuilder;
 import org.eclipse.smarthome.core.types.CommandOption;
 import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
-import org.eclipse.smarthome.core.types.StateDescription;
-import org.eclipse.smarthome.core.types.StateDescriptionFragmentBuilder;
 import org.eclipse.smarthome.core.types.StateOption;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.upnpcontrol.internal.UpnpControlHandlerFactory;
+import org.openhab.binding.upnpcontrol.internal.UpnpControlUtil;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
@@ -85,7 +82,7 @@ public class UpnpServerHandler extends UpnpHandler {
 
     private @NonNullByDefault({}) ChannelUID rendererChannelUID;
     private @NonNullByDefault({}) ChannelUID currentSelectionChannelUID;
-    private @NonNullByDefault({}) ChannelUID playlistChannelUID;
+    private @NonNullByDefault({}) ChannelUID playlistSelectChannelUID;
 
     private volatile @Nullable CompletableFuture<Boolean> isBrowsing;
 
@@ -98,9 +95,6 @@ public class UpnpServerHandler extends UpnpHandler {
 
     private volatile String playlistName = "";
 
-    private UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider;
-    private UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider;
-
     protected @NonNullByDefault({}) UpnpControlServerConfiguration config;
 
     public UpnpServerHandler(Thing thing, UpnpIOService upnpIOService,
@@ -108,10 +102,8 @@ public class UpnpServerHandler extends UpnpHandler {
             UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider,
             UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider,
             UpnpControlBindingConfiguration configuration) {
-        super(thing, upnpIOService, configuration);
+        super(thing, upnpIOService, configuration, upnpStateDescriptionProvider, upnpCommandDescriptionProvider);
         this.upnpRenderers = upnpRenderers;
-        this.upnpStateDescriptionProvider = upnpStateDescriptionProvider;
-        this.upnpCommandDescriptionProvider = upnpCommandDescriptionProvider;
 
         // put root as highest level in parent map
         parentMap.put(currentEntry.getId(), currentEntry);
@@ -140,12 +132,12 @@ public class UpnpServerHandler extends UpnpHandler {
                     "Channel " + BROWSE + " not defined");
             return;
         }
-        Channel playlistChannel = thing.getChannel(PLAYLIST);
-        if (playlistChannel != null) {
-            playlistChannelUID = playlistChannel.getUID();
+        Channel playlistSelectChannel = thing.getChannel(PLAYLIST_SELECT);
+        if (playlistSelectChannel != null) {
+            playlistSelectChannelUID = playlistSelectChannel.getUID();
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
-                    "Channel " + PLAYLIST + " not defined");
+                    "Channel " + PLAYLIST_SELECT + " not defined");
             return;
         }
 
@@ -213,22 +205,22 @@ public class UpnpServerHandler extends UpnpHandler {
             case PLAYLIST:
                 handleCommandPlaylist(command);
                 break;
-            case RESTORE:
+            case PLAYLIST_RESTORE:
                 if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
                     restorePlayList();
                 }
                 break;
-            case SAVE:
+            case PLAYLIST_SAVE:
                 if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
                     savePlaylist(false);
                 }
                 break;
-            case APPEND:
+            case PLAYLIST_APPEND:
                 if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
                     savePlaylist(true);
                 }
                 break;
-            case DELETE:
+            case PLAYLIST_DELETE:
                 if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
                     deletePlaylist();
                 }
@@ -384,6 +376,7 @@ public class UpnpServerHandler extends UpnpHandler {
         UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
         queue.persistQueue(playlistName, append, configuration.path);
         updatePlaylistsList();
+        updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
     }
 
     private void restorePlayList() {
@@ -393,7 +386,7 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void deletePlaylist() {
-        UpnpEntryQueue.deletePlaylist(playlistName, configuration.path);
+        UpnpControlUtil.deletePlaylist(playlistName, configuration.path);
         updatePlaylistsList();
         updateState(PLAYLIST, UnDefType.UNDEF);
         updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
@@ -433,9 +426,9 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void updatePlaylistsList() {
-        playlistStateOptionList = UpnpEntryQueue.playlists(configuration.path).stream()
+        playlistStateOptionList = UpnpControlUtil.playlists(configuration.path).stream()
                 .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
-        updateStateDescription(playlistChannelUID, playlistStateOptionList);
+        updateStateDescription(playlistSelectChannelUID, playlistStateOptionList);
     }
 
     private void updateTitleSelection(List<UpnpEntry> titleList) {
@@ -499,18 +492,6 @@ public class UpnpServerHandler extends UpnpHandler {
         }
         logger.debug("Filtered result list {}", list);
         return list;
-    }
-
-    private void updateStateDescription(ChannelUID channelUID, List<StateOption> stateOptionList) {
-        StateDescription stateDescription = StateDescriptionFragmentBuilder.create().withReadOnly(false)
-                .withOptions(stateOptionList).build().toStateDescription();
-        upnpStateDescriptionProvider.setDescription(channelUID, stateDescription);
-    }
-
-    private void updateCommandDescription(ChannelUID channelUID, List<CommandOption> commandOptionList) {
-        CommandDescription commandDescription = CommandDescriptionBuilder.create().withCommandOptions(commandOptionList)
-                .build();
-        upnpCommandDescriptionProvider.setDescription(channelUID, commandDescription);
     }
 
     /**

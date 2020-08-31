@@ -52,6 +52,10 @@ public class UpnpControlBindingConstants {
     public static final String REPEAT = "repeat";
     public static final String SHUFFLE = "shuffle";
     public static final String URI = "uri";
+    public static final String FAVORITE_SELECT = "favoriteselect";
+    public static final String FAVORITE = "favorite";
+    public static final String FAVORITE_SAVE = "favoritesave";
+    public static final String FAVORITE_DELETE = "favoritedelete";
     public static final String TITLE = "title";
     public static final String ALBUM = "album";
     public static final String ALBUM_ART = "albumart";
@@ -71,10 +75,10 @@ public class UpnpControlBindingConstants {
     public static final String SERVE = "serve";
     public static final String PLAYLIST_SELECT = "playlistselect";
     public static final String PLAYLIST = "playlist";
-    public static final String RESTORE = "restore";
-    public static final String SAVE = "save";
-    public static final String APPEND = "append";
-    public static final String DELETE = "delete";
+    public static final String PLAYLIST_RESTORE = "playlistrestore";
+    public static final String PLAYLIST_SAVE = "playlistsave";
+    public static final String PLAYLIST_APPEND = "playlistappend";
+    public static final String PLAYLIST_DELETE = "playlistdelete";
 
     // channels that are duplicated on server to control current renderer
     public static final Set<String> SERVER_CONTROL_CHANNELS = Stream.of(VOLUME, MUTE, CONTROL, STOP)
@@ -94,5 +98,5 @@ public class UpnpControlBindingConstants {
     public static final String DEFAULT_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
             + File.separator;
     public static final String PLAYLIST_FILE_EXTENSION = ".lst";
-    public static final String FAVOURITE_FILE_EXTENSION = ".fav";
+    public static final String FAVORITE_FILE_EXTENSION = ".fav";
 }

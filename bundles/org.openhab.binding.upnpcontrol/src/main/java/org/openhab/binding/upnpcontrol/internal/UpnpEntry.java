@@ -50,6 +50,10 @@ public class UpnpEntry {
 
     private boolean isContainer;
 
+    public UpnpEntry() {
+        this("", "", "", "");
+    }
+
     public UpnpEntry(String id, String refId, String parentId, String upnpClass) {
         this.id = id;
         this.refId = refId;

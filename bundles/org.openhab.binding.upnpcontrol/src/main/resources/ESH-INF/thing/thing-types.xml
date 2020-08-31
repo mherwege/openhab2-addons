@@ -18,7 +18,12 @@
 			<channel id="repeat" typeId="repeat"/>
 			<channel id="shuffle" typeId="shuffle"/>
 
-            <channel id="uri" typeId="uri"/>
+			<channel id="uri" typeId="uri"/>
+			<channel id="favoriteselect" typeId="favoriteselect"/>
+			<channel id="favorite" typeId="favorite"/>
+			<channel id="favoritesave" typeId="favoritesave"/>
+			<channel id="favoritedelete" typeId="favoritedelete"/>
+
 			<channel id="title" typeId="system.media-title"/>
 			<channel id="album" typeId="album"/>
 			<channel id="albumart" typeId="albumart"/>
@@ -58,13 +63,13 @@
 			<channel id="currentid" typeId="currentid"/>
 			<channel id="browse" typeId="browse"/>
 			<channel id="search" typeId="search"/>
-			
+
 			<channel id="playlistselect" typeId="playlistselect"/>
-            <channel id="playlist" typeId="playlist"/>
-            <channel id="restore" typeId="restore"/>
-			<channel id="save" typeId="save"/>
-			<channel id="append" typeId="append"/>
-            <channel id="delete" typeId="delete"/>
+			<channel id="playlist" typeId="playlist"/>
+			<channel id="playlistrestore" typeId="playlistrestore"/>
+			<channel id="playlistsave" typeId="playlistsave"/>
+			<channel id="playlistappend" typeId="playlistappend"/>
+			<channel id="playlistdelete" typeId="playlistdelete"/>
 
 			<channel id="volume" typeId="system.volume"/>
 			<channel id="mute" typeId="system.mute"/>
@@ -116,9 +121,31 @@
 		<description>Random shuffle the selection</description>
 	</channel-type>
 	<channel-type id="uri">
-	   <item-type>String</item-type>
-	   <label>URI</label>
-	   <description>Now playing URI</description>
+		<item-type>String</item-type>
+		<label>URI</label>
+		<description>Now playing URI</description>
+	</channel-type>
+	<channel-type id="favoriteselect">
+		<item-type>String</item-type>
+		<label>Select favorite</label>
+		<description>Select favorite to play</description>
+	</channel-type>
+	<channel-type id="favorite">
+		<item-type>String</item-type>
+		<label>Favorite</label>
+		<description>Favorite name</description>
+	</channel-type>
+	<channel-type id="favoritesave">
+		<item-type>Switch</item-type>
+		<label>Save favorite</label>
+		<description>Save the current media to favorites</description>
+		<autoUpdatePolicy>veto</autoUpdatePolicy>
+	</channel-type>
+	<channel-type id="favoritedelete">
+		<item-type>String</item-type>
+		<label>Delete favorite</label>
+		<description>Remove the current favorite from favorites</description>
+		<autoUpdatePolicy>veto</autoUpdatePolicy>
 	</channel-type>
 	<channel-type id="album">
 		<item-type>String</item-type>
@@ -198,37 +225,37 @@
 			upnp:album contains "Born in"</description>
 	</channel-type>
 	<channel-type id="playlistselect">
-	   <item-type>String</item-type>
-	   <label>Select playlist</label>
-	   <description>Playlist for selection</description>
+		<item-type>String</item-type>
+		<label>Select playlist</label>
+		<description>Playlist for selection</description>
 	</channel-type>
-    <channel-type id="playlist">
-       <item-type>String</item-type>
-       <label>Playlist</label>
-       <description>Playlist name</description>
-    </channel-type>
-    <channel-type id="restore">
-       <item-type>Switch</item-type>
-        <label>Restore playlist</label>
-        <description>Restore the selected playlist</description>
-        <autoUpdatePolicy>veto</autoUpdatePolicy>
-    </channel-type>
-    <channel-type id="save">
-       <item-type>Switch</item-type>
-        <label>Save new playlist</label>
-        <description>Save the current selection to the selected playlist</description>
-        <autoUpdatePolicy>veto</autoUpdatePolicy>
-    </channel-type>
-    <channel-type id="append">
-       <item-type>Switch</item-type>
-       <label>Append to playlist</label>
-       <description>Append the current selection to the selected playlist</description>
-        <autoUpdatePolicy>veto</autoUpdatePolicy>
-    </channel-type>
-    <channel-type id="delete">
-       <item-type>Switch</item-type>
-       <label>Delete playlist</label>
-       <description>Delete the current playlist</description>
-        <autoUpdatePolicy>veto</autoUpdatePolicy>
-    </channel-type>
+	<channel-type id="playlist">
+		<item-type>String</item-type>
+		<label>Playlist</label>
+		<description>Playlist name</description>
+	</channel-type>
+	<channel-type id="playlistrestore">
+		<item-type>Switch</item-type>
+		<label>Restore playlist</label>
+		<description>Restore the selected playlist</description>
+		<autoUpdatePolicy>veto</autoUpdatePolicy>
+	</channel-type>
+	<channel-type id="playlistsave">
+		<item-type>Switch</item-type>
+		<label>Save new playlist</label>
+		<description>Save the current selection to the selected playlist</description>
+		<autoUpdatePolicy>veto</autoUpdatePolicy>
+	</channel-type>
+	<channel-type id="playlistappend">
+		<item-type>Switch</item-type>
+		<label>Append to playlist</label>
+		<description>Append the current selection to the selected playlist</description>
+		<autoUpdatePolicy>veto</autoUpdatePolicy>
+	</channel-type>
+	<channel-type id="playlistdelete">
+		<item-type>Switch</item-type>
+		<label>Delete playlist</label>
+		<description>Delete the current playlist</description>
+		<autoUpdatePolicy>veto</autoUpdatePolicy>
+	</channel-type>
 </thing:thing-descriptions>
