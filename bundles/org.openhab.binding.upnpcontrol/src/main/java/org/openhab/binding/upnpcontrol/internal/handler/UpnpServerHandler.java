@@ -57,6 +57,7 @@ import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
 import org.openhab.binding.upnpcontrol.internal.UpnpProtocolMatcher;
 import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
+import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlServerConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,8 +106,9 @@ public class UpnpServerHandler extends UpnpHandler {
     public UpnpServerHandler(Thing thing, UpnpIOService upnpIOService,
             ConcurrentMap<String, UpnpRendererHandler> upnpRenderers,
             UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider,
-            UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider) {
-        super(thing, upnpIOService);
+            UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider,
+            UpnpControlBindingConfiguration configuration) {
+        super(thing, upnpIOService, configuration);
         this.upnpRenderers = upnpRenderers;
         this.upnpStateDescriptionProvider = upnpStateDescriptionProvider;
         this.upnpCommandDescriptionProvider = upnpCommandDescriptionProvider;
@@ -204,6 +206,9 @@ public class UpnpServerHandler extends UpnpHandler {
                 break;
             case SEARCH:
                 handleCommandSearch(command);
+                break;
+            case PLAYLIST_SELECT:
+                handleCommandPlaylistSelect(command);
                 break;
             case PLAYLIST:
                 handleCommandPlaylist(command);
@@ -336,9 +341,21 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
+    private void handleCommandPlaylistSelect(Command command) {
+        if (command instanceof StringType) {
+            playlistName = command.toString();
+            updateState(PLAYLIST, StringType.valueOf(playlistName));
+        }
+    }
+
     private void handleCommandPlaylist(Command command) {
         if (command instanceof StringType) {
             playlistName = command.toString();
+            if (playlistStateOptionList.contains(new StateOption(playlistName, playlistName))) {
+                updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
+            } else {
+                updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
+            }
         }
     }
 
@@ -360,13 +377,13 @@ public class UpnpServerHandler extends UpnpHandler {
             mediaQueue.add(currentEntry);
         }
         UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
-        queue.persistQueue(playlistName, append);
+        queue.persistQueue(playlistName, append, configuration.path);
         updatePlaylistsList();
     }
 
     private void restorePlayList() {
         UpnpEntryQueue queue = new UpnpEntryQueue();
-        queue.restoreQueue(playlistName);
+        queue.restoreQueue(playlistName, config.udn, configuration.path);
         updateTitleSelection(queue.getEntryList());
     }
 
@@ -648,9 +665,13 @@ public class UpnpServerHandler extends UpnpHandler {
                 logger.debug("Nothing to serve from server {} to renderer {}", thing.getLabel(),
                         handler.getThing().getLabel());
             } else {
-                handler.registerQueue(new UpnpEntryQueue(mediaQueue, config.udn));
+                UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
+                handler.registerQueue(queue);
                 logger.debug("Serving media queue {} from server {} to renderer {}", mediaQueue, thing.getLabel(),
                         handler.getThing().getLabel());
+
+                // always keep a copy of current list
+                queue.persistQueue(configuration.path);
             }
         } else {
             logger.warn("Cannot serve media from server {}, no renderer selected", thing.getLabel());

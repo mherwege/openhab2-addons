@@ -15,11 +15,13 @@ package org.openhab.binding.upnpcontrol.internal;
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
 import java.util.Hashtable;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.audio.AudioHTTPServer;
 import org.eclipse.smarthome.core.audio.AudioSink;
 import org.eclipse.smarthome.core.net.HttpServiceUtil;
@@ -30,11 +32,13 @@ import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
+import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.handler.UpnpRendererHandler;
 import org.openhab.binding.upnpcontrol.internal.handler.UpnpServerHandler;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +52,7 @@ import org.slf4j.LoggerFactory;
 @Component(service = ThingHandlerFactory.class, configurationPid = "binding.upnpcontrol")
 @NonNullByDefault
 public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implements UpnpAudioSinkReg {
+    final UpnpControlBindingConfiguration configuration = new UpnpControlBindingConfiguration();
 
     private final Logger logger = LoggerFactory.getLogger(UpnpControlHandlerFactory.class);
 
@@ -68,12 +73,24 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
             final @Reference AudioHTTPServer audioHTTPServer,
             final @Reference NetworkAddressService networkAddressService,
             final @Reference UpnpDynamicStateDescriptionProvider dynamicStateDescriptionProvider,
-            final @Reference UpnpDynamicCommandDescriptionProvider dynamicCommandDescriptionProvider) {
+            final @Reference UpnpDynamicCommandDescriptionProvider dynamicCommandDescriptionProvider,
+            Map<String, Object> config) {
         this.upnpIOService = upnpIOService;
         this.audioHTTPServer = audioHTTPServer;
         this.networkAddressService = networkAddressService;
         this.upnpStateDescriptionProvider = dynamicStateDescriptionProvider;
         this.upnpCommandDescriptionProvider = dynamicCommandDescriptionProvider;
+
+        modified(config);
+    }
+
+    @Modified
+    protected void modified(Map<String, Object> config) {
+        // We update instead of replace the configuration object, so that if the user updates the
+        // configuration, the values are automatically available in all handlers. Because they all
+        // share the same instance.
+        configuration.update(new Configuration(config).as(UpnpControlBindingConfiguration.class));
+        logger.debug("Updated binding configuration to {}", configuration);
     }
 
     @Override
@@ -108,7 +125,7 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
 
     private UpnpServerHandler addServer(Thing thing) {
         UpnpServerHandler handler = new UpnpServerHandler(thing, upnpIOService, upnpRenderers,
-                upnpStateDescriptionProvider, upnpCommandDescriptionProvider);
+                upnpStateDescriptionProvider, upnpCommandDescriptionProvider, configuration);
         String key = thing.getUID().toString();
         upnpServers.put(key, handler);
         logger.debug("Media server handler created for {}", thing.getLabel());
@@ -117,7 +134,7 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
 
     private UpnpRendererHandler addRenderer(Thing thing) {
         callbackUrl = createCallbackUrl();
-        UpnpRendererHandler handler = new UpnpRendererHandler(thing, upnpIOService, this);
+        UpnpRendererHandler handler = new UpnpRendererHandler(thing, upnpIOService, this, configuration);
         String key = thing.getUID().toString();
         upnpRenderers.put(key, handler);
         upnpServers.forEach((thingId, value) -> value.addRendererOption(key));

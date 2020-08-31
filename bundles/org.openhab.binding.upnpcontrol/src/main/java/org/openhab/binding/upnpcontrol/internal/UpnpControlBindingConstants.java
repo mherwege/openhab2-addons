@@ -68,6 +68,7 @@ public class UpnpControlBindingConstants {
     public static final String BROWSE = "browse";
     public static final String SEARCH = "search";
     public static final String SERVE = "serve";
+    public static final String PLAYLIST_SELECT = "playlistselect";
     public static final String PLAYLIST = "playlist";
     public static final String RESTORE = "restore";
     public static final String SAVE = "save";
@@ -85,7 +86,8 @@ public class UpnpControlBindingConstants {
     // Master volume and mute identifier
     public static final String UPNP_MASTER = "Master";
 
-    public static final String PLAYLIST_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
+    public static final String STORAGE_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
             + File.separator;
-    public static final String PLAYLIST_FILE_EXTENSION = ".playlist";
+    public static final String PLAYLIST_FILE_EXTENSION = ".lst";
+    public static final String FAVOURITE_FILE_EXTENSION = ".fav";
 }

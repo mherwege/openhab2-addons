@@ -47,6 +47,7 @@ import org.eclipse.smarthome.io.transport.upnp.UpnpIOParticipant;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelTypeProvider;
+import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +68,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
 
     // The handlers can potentially create an important number of tasks, therefore put them in a separate thread pool
     protected final ScheduledExecutorService upnpScheduler = ThreadPoolManager.getScheduledPool("binding-upnpcontrol");
+
+    protected UpnpControlBindingConfiguration configuration;
 
     private boolean updateChannels;
     private final List<Channel> updatedChannels = new ArrayList<>();
@@ -101,10 +104,12 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
 
     protected @Nullable UpnpChannelTypeProvider channelTypeProvider;
 
-    public UpnpHandler(Thing thing, UpnpIOService upnpIOService) {
+    public UpnpHandler(Thing thing, UpnpIOService upnpIOService, UpnpControlBindingConfiguration configuration) {
         super(thing);
 
         this.service = upnpIOService;
+
+        this.configuration = configuration;
     }
 
     @Override

@@ -66,6 +66,7 @@ import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
 import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
+import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlRendererConfiguration;
 import org.openhab.binding.upnpcontrol.internal.services.UpnpRenderingControlConfiguration;
 import org.slf4j.Logger;
@@ -119,8 +120,9 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile long expectedTrackend = 0;
     private volatile @Nullable ScheduledFuture<?> trackPositionRefresh;
 
-    public UpnpRendererHandler(Thing thing, UpnpIOService upnpIOService, UpnpAudioSinkReg audioSinkReg) {
-        super(thing, upnpIOService);
+    public UpnpRendererHandler(Thing thing, UpnpIOService upnpIOService, UpnpAudioSinkReg audioSinkReg,
+            UpnpControlBindingConfiguration configuration) {
+        super(thing, upnpIOService, configuration);
 
         serviceSubscriptions.add("AVTransport");
         serviceSubscriptions.add("RenderingControl");

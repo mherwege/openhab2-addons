@@ -58,7 +58,8 @@
 			<channel id="browse" typeId="browse"/>
 			<channel id="search" typeId="search"/>
 			
-			<channel id="playlist" typeId="playlist"/>
+			<channel id="playlistselect" typeId="playlistselect"/>
+            <channel id="playlist" typeId="playlist"/>
             <channel id="restore" typeId="restore"/>
 			<channel id="save" typeId="save"/>
 			<channel id="append" typeId="append"/>
@@ -189,11 +190,16 @@
 			Examples: dc:title contains "song", dc:creator contains "SpringSteen", unp:class = "object.item.audioItem",
 			upnp:album contains "Born in"</description>
 	</channel-type>
-	<channel-type id="playlist">
+	<channel-type id="playlistselect">
 	   <item-type>String</item-type>
-	   <label>Playlist</label>
+	   <label>Select playlist</label>
 	   <description>Playlist for selection</description>
 	</channel-type>
+    <channel-type id="playlist">
+       <item-type>String</item-type>
+       <label>Playlist</label>
+       <description>Playlist name</description>
+    </channel-type>
     <channel-type id="restore">
        <item-type>Switch</item-type>
         <label>Restore playlist</label>
