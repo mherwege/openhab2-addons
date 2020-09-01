@@ -56,6 +56,7 @@ import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.CommandOption;
 import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.StateOption;
@@ -65,7 +66,6 @@ import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSink;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
-import org.openhab.binding.upnpcontrol.internal.UpnpControlUtil;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
@@ -75,6 +75,7 @@ import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlRendererConfiguration;
 import org.openhab.binding.upnpcontrol.internal.services.UpnpRenderingControlConfiguration;
+import org.openhab.binding.upnpcontrol.internal.util.UpnpControlUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +107,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private @Nullable UpnpRenderingControlConfiguration renderingControlConfiguration;
 
     private volatile List<StateOption> favoriteStateOptionList = Collections.synchronizedList(new ArrayList<>());
-    private volatile List<StateOption> playlistCommandOptionList = Collections.synchronizedList(new ArrayList<>());
+    private volatile List<CommandOption> playlistCommandOptionList = Collections.synchronizedList(new ArrayList<>());
 
     private @NonNullByDefault({}) ChannelUID favoriteSelectChannelUID;
     private @NonNullByDefault({}) ChannelUID playlistSelectChannelUID;
@@ -207,6 +208,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                             "Mal formed Rendering Control descriptor URL: " + descriptor);
                     return;
                 }
+
+                playlistsListChanged();
 
                 getProtocolInfo();
 
@@ -831,10 +834,11 @@ public class UpnpRendererHandler extends UpnpHandler {
         updateStateDescription(favoriteSelectChannelUID, favoriteStateOptionList);
     }
 
-    private void updatePlaylistsList() {
-        playlistCommandOptionList = UpnpControlUtil.playlists(bindingConfig.path).stream()
-                .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
-        updateStateDescription(playlistSelectChannelUID, playlistCommandOptionList);
+    @Override
+    public void playlistsListChanged() {
+        playlistCommandOptionList = UpnpControlUtil.playlists().stream().map(p -> (new CommandOption(p, p)))
+                .collect(Collectors.toList());
+        updateCommandDescription(playlistSelectChannelUID, playlistCommandOptionList);
     }
 
     @Override

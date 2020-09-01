@@ -10,11 +10,12 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.upnpcontrol.internal;
+package org.openhab.binding.upnpcontrol.internal.util;
 
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -22,6 +23,9 @@ import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.upnpcontrol.internal.UpnpPlaylistsListener;
+import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
+import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfigurationListener;
 
 /**
  * Class with some static utility methods for the upnpcontrol binding.
@@ -30,16 +34,36 @@ import org.eclipse.jdt.annotation.Nullable;
  *
  */
 @NonNullByDefault
-public final class UpnpControlUtil {
+public final class UpnpControlUtil implements UpnpControlBindingConfigurationListener {
+
+    volatile private static List<String> playlistList = new ArrayList<>();
+    private static List<UpnpPlaylistsListener> playlistSubscriptions = new ArrayList<>();
+
+    public static void updatePlaylistsList(@Nullable String path) {
+        playlistList = list(path, PLAYLIST_FILE_EXTENSION);
+        playlistSubscriptions.forEach(l -> l.playlistsListChanged());
+    }
+
+    public static void playlistsSubscribe(UpnpPlaylistsListener listener) {
+        playlistSubscriptions.add(listener);
+    }
+
+    public static void playlistsUnsubscribe(UpnpPlaylistsListener listener) {
+        playlistSubscriptions.remove(listener);
+    }
+
+    @Override
+    public void bindingConfigurationChanged(UpnpControlBindingConfiguration bindingConfig) {
+        updatePlaylistsList(bindingConfig.path);
+    }
 
     /**
      * Get names of saved playlists.
      *
-     * @param path of playlist directory
      * @return playlists
      */
-    public static List<String> playlists(@Nullable String path) {
-        return list(path, PLAYLIST_FILE_EXTENSION);
+    public static List<String> playlists() {
+        return playlistList;
     }
 
     /**

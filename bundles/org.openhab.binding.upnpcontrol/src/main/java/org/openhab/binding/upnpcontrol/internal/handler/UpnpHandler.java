@@ -55,8 +55,10 @@ import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelTypeProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
+import org.openhab.binding.upnpcontrol.internal.UpnpPlaylistsListener;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlConfiguration;
+import org.openhab.binding.upnpcontrol.internal.util.UpnpControlUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,7 +70,7 @@ import org.slf4j.LoggerFactory;
  * @author Karel Goderis - Based on UPnP logic in Sonos binding
  */
 @NonNullByDefault
-public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOParticipant {
+public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOParticipant, UpnpPlaylistsListener {
 
     private final Logger logger = LoggerFactory.getLogger(UpnpHandler.class);
 
@@ -131,6 +133,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     public void initialize() {
         config = getConfigAs(UpnpControlConfiguration.class);
         service.registerParticipant(this);
+
+        UpnpControlUtil.playlistsSubscribe(this);
     }
 
     @Override
@@ -142,6 +146,8 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     public void dispose() {
         removeSubscriptions();
         cancelPollingJob();
+
+        UpnpControlUtil.playlistsUnsubscribe(this);
 
         CompletableFuture<Boolean> connectionIdFuture = isConnectionIdSet;
         if (connectionIdFuture != null) {
@@ -571,4 +577,6 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         }
         subscriptionRefreshJob = null;
     }
+
+    public abstract void playlistsListChanged();
 }

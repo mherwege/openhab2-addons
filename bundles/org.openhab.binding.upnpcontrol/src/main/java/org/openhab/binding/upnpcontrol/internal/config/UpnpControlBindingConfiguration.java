@@ -15,16 +15,22 @@ package org.openhab.binding.upnpcontrol.internal.config;
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.DEFAULT_PATH;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 
 /**
+ * Class containing the binding configuration parameters. Some helper methods take care of updating the relevant classes
+ * with parameter changes.
  *
  * @author Mark Herwege - Initial contribution
  */
 @NonNullByDefault
 public class UpnpControlBindingConfiguration {
+
+    private List<UpnpControlBindingConfigurationListener> listeners = new ArrayList<>();
 
     public @Nullable String path = DEFAULT_PATH;
 
@@ -47,5 +53,16 @@ public class UpnpControlBindingConfiguration {
         } else {
             path = DEFAULT_PATH;
         }
+
+        notifyListeners();
     }
+
+    public void addUpnpControlBindingConfigurationListener(UpnpControlBindingConfigurationListener listener) {
+        listeners.add(listener);
+    }
+
+    private void notifyListeners() {
+        listeners.forEach(l -> l.bindingConfigurationChanged(this));
+    }
+
 }

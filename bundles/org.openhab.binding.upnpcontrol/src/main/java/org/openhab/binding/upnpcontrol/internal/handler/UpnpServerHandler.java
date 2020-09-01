@@ -47,15 +47,15 @@ import org.eclipse.smarthome.core.types.StateOption;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.upnpcontrol.internal.UpnpControlHandlerFactory;
-import org.openhab.binding.upnpcontrol.internal.UpnpControlUtil;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
-import org.openhab.binding.upnpcontrol.internal.UpnpProtocolMatcher;
 import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlServerConfiguration;
+import org.openhab.binding.upnpcontrol.internal.util.UpnpControlUtil;
+import org.openhab.binding.upnpcontrol.internal.util.UpnpProtocolMatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,7 +171,7 @@ public class UpnpServerHandler extends UpnpHandler {
                 getProtocolInfo();
 
                 browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
-                updatePlaylistsList();
+                playlistsListChanged();
 
                 updateStatus(ThingStatus.ONLINE);
             }
@@ -461,7 +461,7 @@ public class UpnpServerHandler extends UpnpHandler {
             }
             UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
             queue.persistQueue(playlistName, append, bindingConfig.path);
-            updatePlaylistsList();
+            UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
             updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
         }
     }
@@ -469,7 +469,7 @@ public class UpnpServerHandler extends UpnpHandler {
     private void handleCommandPlaylistDelete(Command command) {
         if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
             UpnpControlUtil.deletePlaylist(playlistName, bindingConfig.path);
-            updatePlaylistsList();
+            UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
             updateState(PLAYLIST, UnDefType.UNDEF);
             updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
         }
@@ -519,9 +519,10 @@ public class UpnpServerHandler extends UpnpHandler {
         logger.debug("Renderer option {} removed from {}", key, thing.getLabel());
     }
 
-    private void updatePlaylistsList() {
-        playlistStateOptionList = UpnpControlUtil.playlists(bindingConfig.path).stream()
-                .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
+    @Override
+    public void playlistsListChanged() {
+        playlistStateOptionList = UpnpControlUtil.playlists().stream().map(p -> (new StateOption(p, p)))
+                .collect(Collectors.toList());
         updateStateDescription(playlistSelectChannelUID, playlistStateOptionList);
     }
 
