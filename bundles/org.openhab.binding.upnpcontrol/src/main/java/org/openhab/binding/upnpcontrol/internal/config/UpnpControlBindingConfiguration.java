@@ -12,13 +12,12 @@
  */
 package org.openhab.binding.upnpcontrol.internal.config;
 
-import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.BINDING_ID;
+import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.DEFAULT_PATH;
 
 import java.io.File;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.smarthome.config.core.ConfigConstants;
 
 /**
  *
@@ -26,9 +25,6 @@ import org.eclipse.smarthome.config.core.ConfigConstants;
  */
 @NonNullByDefault
 public class UpnpControlBindingConfiguration {
-
-    private final static String DEFAULT_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
-            + File.separator;
 
     public @Nullable String path = DEFAULT_PATH;
 

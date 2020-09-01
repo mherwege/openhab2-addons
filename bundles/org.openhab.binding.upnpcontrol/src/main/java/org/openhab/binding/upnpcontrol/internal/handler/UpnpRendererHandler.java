@@ -737,17 +737,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else if (command instanceof StringType) {
             favoriteName = command.toString();
             updateState(FAVORITE, StringType.valueOf(favoriteName));
-            UpnpFavorite favorite = new UpnpFavorite(favoriteName, configuration.path);
-            String uri = favorite.getUri();
-            UpnpEntry entry = favorite.getUpnpEntry();
-            if (!uri.isEmpty()) {
-                String metadata = "";
-                if (entry != null) {
-                    metadata = UpnpXMLParser.compileMetadataString(entry);
-                }
-                setCurrentURI(uri, metadata);
-                play();
-            }
+            playFavorite();
             updateState(channelUID, StringType.valueOf(favoriteName));
         }
     }
@@ -759,6 +749,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             favoriteName = command.toString();
             if (favoriteStateOptionList.contains(new StateOption(favoriteName, favoriteName))) {
                 updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
+                playFavorite();
             } else {
                 updateState(FAVORITE_SELECT, UnDefType.UNDEF);
             }
@@ -769,7 +760,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void handleCommandFavoriteSave(Command command) {
         if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
             UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
-            favorite.saveFavorite(favoriteName, configuration.path);
+            favorite.saveFavorite(favoriteName, bindingConfig.path);
             updateFavoritesList();
             updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
         }
@@ -777,7 +768,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private void handleCommandFavoriteDelete(Command command) {
         if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
-            UpnpControlUtil.deleteFavorite(favoriteName, configuration.path);
+            UpnpControlUtil.deleteFavorite(favoriteName, bindingConfig.path);
             updateFavoritesList();
             updateState(FAVORITE, UnDefType.UNDEF);
             updateState(FAVORITE_SELECT, UnDefType.UNDEF);
@@ -806,8 +797,22 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
+    private void playFavorite() {
+        UpnpFavorite favorite = new UpnpFavorite(favoriteName, bindingConfig.path);
+        String uri = favorite.getUri();
+        UpnpEntry entry = favorite.getUpnpEntry();
+        if (!uri.isEmpty()) {
+            String metadata = "";
+            if (entry != null) {
+                metadata = UpnpXMLParser.compileMetadataString(entry);
+            }
+            setCurrentURI(uri, metadata);
+            play();
+        }
+    }
+
     private void updateFavoritesList() {
-        favoriteStateOptionList = UpnpControlUtil.favorites(configuration.path).stream()
+        favoriteStateOptionList = UpnpControlUtil.favorites(bindingConfig.path).stream()
                 .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
         updateStateDescription(favoriteSelectChannelUID, favoriteStateOptionList);
     }

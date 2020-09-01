@@ -8,9 +8,12 @@ UPnP AV media renderers take care of playback of the content.
 You can select a renderer to play the media served from a server.
 The full content hierarchy of the media on the server can be browsed hierarchically.
 Searching the media library is also supported using UPnP search syntax.
+Playlists can be created and maintained.
 
 Controls are available to control the playback of the media on the renderer.
+Currently playing media can be stored as a favorite.
 Each discovered renderer will also be registered as an openHAB audio sink.
+
 
 ## Supported Things
 
@@ -20,6 +23,13 @@ The binding has been tested with the AV Media Server and AV Media Renderer from 
 A second test set included a [TVersity Media Server](http://tversity.com/).
 It complies with part of the UPnP AV Media standard, but has not been verified to comply with the full specification.
 Tests have focused on the playback of audio, but if the server and renderer support it, other media types should play as well.
+
+
+## Binding Configuration
+
+The binding has one configuration parameter, `path`.
+This is used as the disk location for storing and retrieving playlists and favorites.
+The default location is `$OPENHAB_USERDATA/upnpcontrol`.
 
 
 ## Discovery
@@ -56,20 +66,26 @@ Thing upnpcontrol:upnpserver:<serverId> [udn="<udn of media server>"]
 Thing upnpcontrol:upnprenderer:<rendererId> [udn="<udn of media renderer>", filter=<true/false>, sortcriteria="<sort criteria string>"]
 ```
 
+
 ## Channels
+
+### `upnpserver`
 
 The `upnpserver` has the following channels:
 
 * `upnprenderer`: The renderer to send the media content to for playback.
 The channel allows selecting from all discovered media renderers.
 This list is dynamically adjusted as media renderers are being added/removed.
+
 * `currentid`: Current ID of media container or entry ready for playback.
 This channel can be used to skip to a specific container or entry in the content directory.
-This is especially useful in rules.
+Setting this to 0 will reposition to the top of the content hierarchy.
+
 * `browse`: Browse and serve media content.
 The browsing will start at the top of the content directory tree and allows you to go down and up (represented by ..) in the tree.
 The list of containers (directories) and media entries for selection in the content hierarchy is updated dynamically when selecting a container or entry.
 All media in the selection list, playable on the currently selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
+
 * `search`: Search for media content on the server.
 Search criteria are defined in UPnP search criteria format.
 Examples: `dc:title contains "song"`, `dc:creator contains "SpringSteen"`, `unp:class = "object.item.audioItem"`, `upnp:album contains "Born in"`.
@@ -79,8 +95,28 @@ The result (media and containers) will be available in the `browse` command opti
 The `currentid` channel will be put to the parent of the first entry in the result list.
 All media in the search result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
 
+* `playlistselect`: Select a playlist from the available playlists currently saved on disk.
+This will also update `playlist` with the selected value.
+
+* `playlist`: Name of existing or new playlist.
+
+* `playlistrestore`: Restore the playlist from `playlist`.
+If the restored playlist contains content from the current server, this content will update the `browse` command option list.
+Note that playlists can contain a mix of media entries and container references.
+All media in the result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
+
+* `playlistsave`: Save the current `browse` command option list into `playlist`.
+If `playlist` already exists, it will be overwritten.
+
+* `playlistappend`: Append the current `browse` command option list to `playlist`.
+If `playlist` does not exist yet, a new playlist will be created.
+
+* `playlistdelete`: Delete `playlist` from disk and remove from `playlistselect` command option list.
+
 A number of convenience channels replicate the basic control channels from the `upnprenderer` thing for the currently selected renderer on the `upnprenderer` channel.
 These channels are `volume`, `mute` and `control`.
+
+### `upnprenderer`
 
 The `upnprenderer` has the following default channels:
 
@@ -92,6 +128,11 @@ The `upnprenderer` has the following default channels:
 | `stop`             | Switch      | RW          | stop media playback                                |
 | `repeat`           | Switch      | RW          | continuous play of media queue, restart at end     |
 | `shuffle`          | Switch      | RW          | continuous random play of media queue              |
+| `uri`              | String      | RW          | URI of currently playing media                     |
+| `favoriteselect`   | String      | RW          | play favorite from list of saved favorites         |
+| `favorite`         | String      | RW          | set name for existing of new favorite              |
+| `favoritesave`     | Switch      | RW          | save favorite to `favorite`                        |
+| `favoritedelete`   | Switch      | RW          | delete current favorite                            |
 | `title`            | String      | R           | media title                                        |
 | `album`            | String      | R           | media album                                        |
 | `albumart`         | Image       | R           | image for media album                              |
@@ -115,21 +156,68 @@ Examples of these are:
 | `rfvolume`         | Dimmer      | RW          | playback front right volume                        |
 | `rfmute`           | Switch      | RW          | playback front right mute                          |
 
+
 ## Audio Support
 
 All configured media renderers are registered as an audio sink.
-`playSound`and `playStream`commands can be used in rules to play back audio fragments or audio streams to a renderer.
+`playSound` and `playStream` commands can be used in rules to play back audio fragments or audio streams to a renderer.
+
+
+## Managing a Playback Queue
+
+There are 2 ways to serve content to a renderer for playback.
+
+* Directly provide a URI on the `URI` channel or `playSound` or `playStream` actions:
+Playing will start immediately, interrupting currently playing media.
+No metadata for the media is available, therefore will be provided in the media channels for metadata (e.g. `title`, `album`, ...).
+
+* Content served from one or multiple `upnpserver` servers:
+This is done on the `upnpserver` thing with the `upnprenderer` set the the renderer for playback.
+The media at any point in time in the `upnpserver browse` option list will be queued to the `upnprenderer` for playback after the currently playing media.
+Playback does not start automatically.
+The `upnprenderer` will use that queue until it is replaced by another queue from the same or another `upnpserver`.
+Note that querying the content hierarchy on the `upnpserver` will update the `upnpserver browse` option list each time, and therefore the queue on the `upnprenderer` will be updated each time as long as `upnprenderer` is selected on `upnpserver`.
+
+When playing from a directly provided URI, at the end of the media, the renderer will try to move to the next entry in a queue previously provided by a server.
+Playing will stop when no such entry is available.
+
+Multiple renderers can be sent the same or different playback queue from the same server sequentially.
+Select content on the server and select the first renderer for playback.
+The content queue will be served to the renderer, a play command on the renderer will start playing the queue.
+Select another renderer on the server.
+The same or new (after another content selection) queue will be served to the second renderer.
+Both renderers will keep on playing the full queue they received.
+
+### Favorites
+
+Currently playing media can be saved as favorites on the renderer.
+This is especially useful when playing streams, such as online radio, but is valid for any media.
+If the currently playing media has metadata, it will be saved with the favorite.
+A favorite only contains one media item.
+Selecting the favorite will only play that one item.
+Playing the server queue will resume after playing the favorite.
+
+### Playlists
+
+Playlists provide a way to define lists of server content for playback.
+A new playlist can be created from the selection in the `upnpserver browse` selection list.
+When restoring a playlist, the media in the playlist from the `upnpserver` thing used for restoring, will be put in the `upnpserver browse` selection list.
+A playlist can contain media from different servers.
+Only the media from the current server will be visible in the server when restoring.
+
 
 ## Limitations
 
-The current version of BasicUI does not support dynamic refreshing of the selection list in the `upnpserver` channels `renderer` and `browse`.
+BasicUI does not support dynamic refreshing of the selection list in the `upnpserver` channels `renderer`, `browse`, `playlistselect` and in the `upnprenderer` channel `favoriteselect`.
 A refresh of the browser will be required to show the adjusted selection list.
 
 The `upnpserver search` channel requires input of a string to trigger a search.
+The `upnpserver playlist` channel and `upnprenderer favorite` channel require input of a string to set a playlist or favorite.
 This cannot be done with BasicUI, but can be achieved with rules.
 
 The player control in BasicUI does not support fast forward or rewind.
 This can be done through rules.
+
 
 ## Full Example
 
@@ -155,6 +243,11 @@ Player Controls  "Controller"                          (MediaRenderer) {channel=
 Switch Stop      "Stop"                                (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:stop"}
 Switch Repeat    "Repeat"                              (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:repeat"}
 Switch Shuffle   "Shuffle"                             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:shuffle"}
+String URI       "URI"                                 (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:uri"}
+String FavoriteSelect "Favorite [%s]"                  (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:favoriteselect"}
+String Favorite  "Favorite"                            (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:favorite"}
+Switch FavoriteSave "Save"                             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:favoritesave"}
+Switch FavoriteDelete "Delete"                         (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:favoritedelete"}
 String Title     "Now playing [%s]" <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:title"}
 String Album     "Album"            <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:album"}
 Image AlbumArt   "Album Art"                           (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:albumart"}
@@ -169,38 +262,55 @@ Dimmer RelTrackPosition "Relative Track Position ´[%d %%]" (MediaRenderer) {cha
 
 String Renderer  "Renderer [%s]"    <text>             (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:title"}
 String CurrentId "Current Entry [%s]" <text>           (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:currentid"}
-String Browse   "Browse"                               (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:browse"}
-String Search   "Search"                               (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:search"}
+String Browse    "Browse"                              (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:browse"}
+String Search    "Search"                              (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:search"}
+String PlaylistSelect "Playlist [%s]"                  (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:playlistselect"}
+String Playlist  "Playlist"                            (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:playlist"}
+String PlaylistRestore "Restore"                       (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:playlistrestore"}
+String PlaylistSave "Save"                             (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:playlistsave"}
+String PlaylistAppend "Append"                         (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:playlistappend"}
+String PlaylistDelete "Delete"                         (MediaServer)   {channel="upnpcontrol:upnpserver:mymediaserver:playlistdelete"}
 ```
 
 .sitemap:
 
 ```
-Slider  item=Volume
-Switch  item=Mute
-Switch  item=Loudness
-Slider  item=LeftVolume
-Slider  item=RightVolume
-Default item=Controls
-Switch  item=Stop mappings=[ON="STOP"]
-Switch  item=Repeat
-Switch  item=Shuffle
-Text    item=Title 
-Text    item=Album
-Default item=AlbumArt
-Text    item=Creator
-Text    item=Artist
-Text    item=Publisher
-Text    item=Genre
-Text    item=TrackNumber
-Text    item=TrackDuration
-Text    item=TrackPosition
-Slider  item=RelTrackPosition
+Slider    item=Volume
+Switch    item=Mute
+Switch    item=Loudness
+Slider    item=LeftVolume
+Slider    item=RightVolume
+Default   item=Controls
+Switch    item=Stop mappings=[ON="STOP"]
+Switch    item=Repeat
+Switch    item=Shuffle
+Text      item=URI
+Selection item=FavoriteSelect
+Text      item=Favorite
+Switch    item=FavoriteSave mappings=[ON="STOP"]
+Switch    item=FavoriteDelete mappings=[ON="STOP"]
+Text      item=Title
+Text      item=Album
+Default   item=AlbumArt
+Text      item=Creator
+Text      item=Artist
+Text      item=Publisher
+Text      item=Genre
+Text      item=TrackNumber
+Text      item=TrackDuration
+Text      item=TrackPosition
+Slider    item=RelTrackPosition
 
-Text    item=Renderer
-Text    item=CurrentId
-Text    item=Browse
-Text    item=Search
+Selection item=Renderer
+Text      item=CurrentId
+Selection item=Browse
+Text      item=Search
+Selection item=PlaylistSelect
+Text      item=Playlist
+Switch    item=PlaylistRestore mappings=[ON="STOP"]
+Switch    item=PlaylistSave mappings=[ON="STOP"]
+Switch    item=PlaylistAppend mappings=[ON="STOP"]
+Switch    item=PlaylistDelete mappings=[ON="STOP"]
 ```
 
 Audio sink usage examples in rules:

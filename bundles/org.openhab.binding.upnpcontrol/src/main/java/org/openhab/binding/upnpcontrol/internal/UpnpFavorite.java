@@ -37,6 +37,10 @@ public class UpnpFavorite {
 
     private final Logger logger = LoggerFactory.getLogger(UpnpEntryQueue.class);
 
+    /**
+     * Inner class used for streaming a favorite to disk as a json object.
+     *
+     */
     private class Favorite {
         String name;
         String uri;
@@ -54,10 +58,25 @@ public class UpnpFavorite {
 
     private final Gson gson = new Gson();
 
+    /**
+     * Create a new favorite from provide URI and details. If {@link UpnpEntry} entry is null, no metadata will be
+     * available with the favorite.
+     *
+     * @param name
+     * @param uri
+     * @param entry
+     */
     public UpnpFavorite(String name, String uri, @Nullable UpnpEntry entry) {
         favorite = new Favorite(name, uri, entry);
     }
 
+    /**
+     * Create a new favorite from a file copy stored on disk. If the favorite cannot be read from disk, an empty
+     * favorite is created.
+     *
+     * @param name
+     * @param path
+     */
     public UpnpFavorite(String name, @Nullable String path) {
         String fileName = path + name + FAVORITE_FILE_EXTENSION;
         File file = new File(fileName);
@@ -69,6 +88,7 @@ public class UpnpFavorite {
                 final String json = new String(contents, StandardCharsets.UTF_8);
 
                 favorite = gson.fromJson(json, Favorite.class);
+                return;
             } catch (JsonParseException | UnsupportedOperationException e) {
                 logger.debug("JsonParseException reading {}: {}", file.toPath(), e.getMessage(), e);
             } catch (IOException e) {
@@ -79,19 +99,34 @@ public class UpnpFavorite {
         favorite = new Favorite(name, "", null);
     }
 
+    /**
+     * @return name of favorite
+     */
     public String getName() {
         return favorite.name;
     }
 
+    /**
+     * @return URI of favorite
+     */
     public String getUri() {
         return favorite.uri;
     }
 
+    /**
+     * @return {@link UpnpEntry} known details of favorite
+     */
     @Nullable
     public UpnpEntry getUpnpEntry() {
         return favorite.entry;
     }
 
+    /**
+     * Save the favorite to disk.
+     *
+     * @param name
+     * @param path
+     */
     public void saveFavorite(String name, @Nullable String path) {
         if (path == null) {
             return;

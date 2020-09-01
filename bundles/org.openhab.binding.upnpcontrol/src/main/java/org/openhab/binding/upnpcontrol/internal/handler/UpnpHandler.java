@@ -77,8 +77,6 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     // The handlers can potentially create an important number of tasks, therefore put them in a separate thread pool
     protected final ScheduledExecutorService upnpScheduler = ThreadPoolManager.getScheduledPool("binding-upnpcontrol");
 
-    protected UpnpControlBindingConfiguration configuration;
-
     private boolean updateChannels;
     private final List<Channel> updatedChannels = new ArrayList<>();
     private final List<ChannelUID> updatedChannelUIDs = new ArrayList<>();
@@ -87,6 +85,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected volatile int avTransportId = 0; // UPnP AVTtransport Id
     protected volatile int rcsId = 0; // UPnP Rendering Control Id
 
+    protected UpnpControlBindingConfiguration bindingConfig;
     protected @NonNullByDefault({}) UpnpControlConfiguration config;
 
     protected final Object invokeActionLock = new Object();
@@ -122,7 +121,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
 
         this.service = upnpIOService;
 
-        this.configuration = configuration;
+        this.bindingConfig = configuration;
 
         this.upnpStateDescriptionProvider = upnpStateDescriptionProvider;
         this.upnpCommandDescriptionProvider = upnpCommandDescriptionProvider;

@@ -95,6 +95,7 @@ public class UpnpControlBindingConstants {
     // Master volume and mute identifier
     public static final String UPNP_MASTER = "Master";
 
+    // Filepath and extension defaults and constants for playlists and favorites
     public static final String DEFAULT_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
             + File.separator;
     public static final String PLAYLIST_FILE_EXTENSION = ".lst";

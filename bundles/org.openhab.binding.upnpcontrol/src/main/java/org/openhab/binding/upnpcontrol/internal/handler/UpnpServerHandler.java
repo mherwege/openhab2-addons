@@ -447,7 +447,7 @@ public class UpnpServerHandler extends UpnpHandler {
     private void handleCommandPlaylistRestore(Command command) {
         if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
             UpnpEntryQueue queue = new UpnpEntryQueue();
-            queue.restoreQueue(playlistName, config.udn, configuration.path);
+            queue.restoreQueue(playlistName, config.udn, bindingConfig.path);
             updateTitleSelection(queue.getEntryList());
         }
     }
@@ -460,7 +460,7 @@ public class UpnpServerHandler extends UpnpHandler {
                 mediaQueue.add(currentEntry);
             }
             UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
-            queue.persistQueue(playlistName, append, configuration.path);
+            queue.persistQueue(playlistName, append, bindingConfig.path);
             updatePlaylistsList();
             updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
         }
@@ -468,7 +468,7 @@ public class UpnpServerHandler extends UpnpHandler {
 
     private void handleCommandPlaylistDelete(Command command) {
         if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
-            UpnpControlUtil.deletePlaylist(playlistName, configuration.path);
+            UpnpControlUtil.deletePlaylist(playlistName, bindingConfig.path);
             updatePlaylistsList();
             updateState(PLAYLIST, UnDefType.UNDEF);
             updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
@@ -520,7 +520,7 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void updatePlaylistsList() {
-        playlistStateOptionList = UpnpControlUtil.playlists(configuration.path).stream()
+        playlistStateOptionList = UpnpControlUtil.playlists(bindingConfig.path).stream()
                 .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
         updateStateDescription(playlistSelectChannelUID, playlistStateOptionList);
     }
@@ -676,7 +676,7 @@ public class UpnpServerHandler extends UpnpHandler {
                         handler.getThing().getLabel());
 
                 // always keep a copy of current list
-                queue.persistQueue(configuration.path);
+                queue.persistQueue(bindingConfig.path);
             }
         } else {
             logger.warn("Cannot serve media from server {}, no renderer selected", thing.getLabel());
