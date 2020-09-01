@@ -106,8 +106,10 @@ public class UpnpRendererHandler extends UpnpHandler {
     private @Nullable UpnpRenderingControlConfiguration renderingControlConfiguration;
 
     private volatile List<StateOption> favoriteStateOptionList = Collections.synchronizedList(new ArrayList<>());
+    private volatile List<StateOption> playlistCommandOptionList = Collections.synchronizedList(new ArrayList<>());
 
     private @NonNullByDefault({}) ChannelUID favoriteSelectChannelUID;
+    private @NonNullByDefault({}) ChannelUID playlistSelectChannelUID;
 
     private volatile String transportState = "";
 
@@ -613,6 +615,9 @@ public class UpnpRendererHandler extends UpnpHandler {
                 case FAVORITE_DELETE:
                     handleCommandFavoriteDelete(command);
                     break;
+                case PLAYLIST_SELECT:
+                    handleCommandPlaylistSelect(channelUID, command);
+                    break;
                 case TRACK_POSITION:
                     handleCommandTrackPosition(channelUID, command);
                     break;
@@ -775,6 +780,15 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
+    private void handleCommandPlaylistSelect(ChannelUID channelUID, Command command) {
+        if (command instanceof StringType) {
+            String playlistName = command.toString();
+            UpnpEntryQueue queue = new UpnpEntryQueue();
+            queue.restoreQueue(playlistName, null, bindingConfig.path);
+            registerQueue(queue);
+        }
+    }
+
     private void handleCommandTrackPosition(ChannelUID channelUID, Command command) {
         if (command instanceof RefreshType) {
             updateState(channelUID, new QuantityType<>(trackPosition, SmartHomeUnits.SECOND));
@@ -815,6 +829,12 @@ public class UpnpRendererHandler extends UpnpHandler {
         favoriteStateOptionList = UpnpControlUtil.favorites(bindingConfig.path).stream()
                 .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
         updateStateDescription(favoriteSelectChannelUID, favoriteStateOptionList);
+    }
+
+    private void updatePlaylistsList() {
+        playlistCommandOptionList = UpnpControlUtil.playlists(bindingConfig.path).stream()
+                .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
+        updateStateDescription(playlistSelectChannelUID, playlistCommandOptionList);
     }
 
     @Override
