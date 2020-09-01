@@ -24,7 +24,7 @@
 			<channel id="favoritesave" typeId="favoritesave"/>
 			<channel id="favoritedelete" typeId="favoritedelete"/>
 
-            <channel id="playlistselect" typeId="playlistselect"/>
+			<channel id="playlistselect" typeId="playlistselect"/>
 
 			<channel id="title" typeId="system.media-title"/>
 			<channel id="album" typeId="album"/>
