@@ -727,7 +727,14 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void handleCommandFavoriteSelect(ChannelUID channelUID, Command command) {
-        if (command instanceof StringType) {
+        if (command instanceof RefreshType) {
+            if (favoriteName.isEmpty()
+                    || !favoriteStateOptionList.stream().anyMatch(o -> favoriteName.equals(o.getLabel()))) {
+                updateState(channelUID, UnDefType.UNDEF);
+            } else {
+                updateState(channelUID, StringType.valueOf(favoriteName));
+            }
+        } else if (command instanceof StringType) {
             favoriteName = command.toString();
             updateState(FAVORITE, StringType.valueOf(favoriteName));
             UpnpFavorite favorite = new UpnpFavorite(favoriteName, configuration.path);
@@ -746,7 +753,9 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void handleCommandFavorite(ChannelUID channelUID, Command command) {
-        if (command instanceof StringType) {
+        if (command instanceof RefreshType) {
+            updateState(channelUID, StringType.valueOf(favoriteName));
+        } else if (command instanceof StringType) {
             favoriteName = command.toString();
             if (favoriteStateOptionList.contains(new StateOption(favoriteName, favoriteName))) {
                 updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));

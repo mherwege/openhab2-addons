@@ -286,10 +286,10 @@ public class UpnpServerHandler extends UpnpHandler {
                 handleCommandSearch(command);
                 break;
             case PLAYLIST_SELECT:
-                handleCommandPlaylistSelect(command);
+                handleCommandPlaylistSelect(channelUID, command);
                 break;
             case PLAYLIST:
-                handleCommandPlaylist(command);
+                handleCommandPlaylist(channelUID, command);
                 break;
             case PLAYLIST_RESTORE:
                 handleCommandPlaylistRestore(command);
@@ -416,15 +416,25 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
-    private void handleCommandPlaylistSelect(Command command) {
-        if (command instanceof StringType) {
+    private void handleCommandPlaylistSelect(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            if (playlistName.isEmpty()
+                    || !playlistStateOptionList.stream().anyMatch(o -> playlistName.equals(o.getLabel()))) {
+                updateState(channelUID, UnDefType.UNDEF);
+            } else {
+                updateState(channelUID, StringType.valueOf(playlistName));
+            }
+        } else if (command instanceof StringType) {
             playlistName = command.toString();
             updateState(PLAYLIST, StringType.valueOf(playlistName));
+            updateState(channelUID, (State) command);
         }
     }
 
-    private void handleCommandPlaylist(Command command) {
-        if (command instanceof StringType) {
+    private void handleCommandPlaylist(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            updateState(channelUID, StringType.valueOf(playlistName));
+        } else if (command instanceof StringType) {
             playlistName = command.toString();
             if (playlistStateOptionList.contains(new StateOption(playlistName, playlistName))) {
                 updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
