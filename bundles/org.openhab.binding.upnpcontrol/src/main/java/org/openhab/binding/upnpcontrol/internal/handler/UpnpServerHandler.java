@@ -178,6 +178,92 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
+    /**
+     * Method that does a UPnP browse on a content directory. Results will be retrieved in the {@link onValueReceived}
+     * method.
+     *
+     * @param objectID content directory object
+     * @param browseFlag BrowseMetaData or BrowseDirectChildren
+     * @param filter properties to be returned
+     * @param startingIndex starting index of objects to return
+     * @param requestedCount number of objects to return, 0 for all
+     * @param sortCriteria sort criteria, example: +dc:title
+     */
+    public void browse(String objectID, String browseFlag, String filter, String startingIndex, String requestedCount,
+            String sortCriteria) {
+        CompletableFuture<Boolean> browsing = isBrowsing;
+        boolean browsed = true;
+        try {
+            if (browsing != null) {
+                // wait for maximum 2.5s until browsing is finished
+                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.debug("Exception, previous server query interrupted or timed out, trying new browse anyway");
+        }
+
+        if (browsed) {
+            isBrowsing = new CompletableFuture<Boolean>();
+
+            Map<String, String> inputs = new HashMap<>();
+            inputs.put("ObjectID", objectID);
+            inputs.put("BrowseFlag", browseFlag);
+            inputs.put("Filter", filter);
+            inputs.put("StartingIndex", startingIndex);
+            inputs.put("RequestedCount", requestedCount);
+            inputs.put("SortCriteria", sortCriteria);
+
+            invokeAction("ContentDirectory", "Browse", inputs);
+        } else {
+            logger.debug("Cannot browse, cancelled querying the server");
+        }
+    }
+
+    /**
+     * Method that does a UPnP search on a content directory. Results will be retrieved in the {@link onValueReceived}
+     * method.
+     *
+     * @param containerID content directory container
+     * @param searchCriteria search criteria, examples:
+     *            dc:title contains "song"
+     *            dc:creator contains "Springsteen"
+     *            upnp:class = "object.item.audioItem"
+     *            upnp:album contains "Born in"
+     * @param filter properties to be returned
+     * @param startingIndex starting index of objects to return
+     * @param requestedCount number of objects to return, 0 for all
+     * @param sortCriteria sort criteria, example: +dc:title
+     */
+    public void search(String containerID, String searchCriteria, String filter, String startingIndex,
+            String requestedCount, String sortCriteria) {
+        CompletableFuture<Boolean> browsing = isBrowsing;
+        boolean browsed = true;
+        try {
+            if (browsing != null) {
+                // wait for maximum 2.5s until browsing is finished
+                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.debug("Exception, previous server query interrupted or timed out, trying new search anyway");
+        }
+
+        if (browsed) {
+            isBrowsing = new CompletableFuture<Boolean>();
+
+            Map<String, String> inputs = new HashMap<>();
+            inputs.put("ContainerID", containerID);
+            inputs.put("SearchCriteria", searchCriteria);
+            inputs.put("Filter", filter);
+            inputs.put("StartingIndex", startingIndex);
+            inputs.put("RequestedCount", requestedCount);
+            inputs.put("SortCriteria", sortCriteria);
+
+            invokeAction("ContentDirectory", "Search", inputs);
+        } else {
+            logger.debug("Cannot search, cancelled querying the server");
+        }
+    }
+
     void updateServerState(ChannelUID channelUID, State state) {
         updateState(channelUID, state);
     }
@@ -206,24 +292,16 @@ public class UpnpServerHandler extends UpnpHandler {
                 handleCommandPlaylist(command);
                 break;
             case PLAYLIST_RESTORE:
-                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
-                    restorePlayList();
-                }
+                handleCommandPlaylistRestore(command);
                 break;
             case PLAYLIST_SAVE:
-                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
-                    savePlaylist(false);
-                }
+                handleCommandPlaylistSave(command, false);
                 break;
             case PLAYLIST_APPEND:
-                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
-                    savePlaylist(true);
-                }
+                handleCommandPlaylistSave(command, true);
                 break;
             case PLAYLIST_DELETE:
-                if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
-                    deletePlaylist();
-                }
+                handleCommandPlaylistDelete(command);
                 break;
             case VOLUME:
             case MUTE:
@@ -356,6 +434,37 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
+    private void handleCommandPlaylistRestore(Command command) {
+        if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+            UpnpEntryQueue queue = new UpnpEntryQueue();
+            queue.restoreQueue(playlistName, config.udn, configuration.path);
+            updateTitleSelection(queue.getEntryList());
+        }
+    }
+
+    private void handleCommandPlaylistSave(Command command, boolean append) {
+        if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+            List<UpnpEntry> mediaQueue = new ArrayList<>();
+            mediaQueue.addAll(entries);
+            if (mediaQueue.isEmpty() && !currentEntry.isContainer()) {
+                mediaQueue.add(currentEntry);
+            }
+            UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
+            queue.persistQueue(playlistName, append, configuration.path);
+            updatePlaylistsList();
+            updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
+        }
+    }
+
+    private void handleCommandPlaylistDelete(Command command) {
+        if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+            UpnpControlUtil.deletePlaylist(playlistName, configuration.path);
+            updatePlaylistsList();
+            updateState(PLAYLIST, UnDefType.UNDEF);
+            updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
+        }
+    }
+
     private void handleCommandInRenderer(ChannelUID channelUID, Command command) {
         String channelId = channelUID.getId();
         UpnpRendererHandler handler = currentRendererHandler;
@@ -365,31 +474,6 @@ public class UpnpServerHandler extends UpnpHandler {
         } else if (!STOP.equals(channelId)) {
             updateState(channelId, UnDefType.UNDEF);
         }
-    }
-
-    private void savePlaylist(boolean append) {
-        List<UpnpEntry> mediaQueue = new ArrayList<>();
-        mediaQueue.addAll(entries);
-        if (mediaQueue.isEmpty() && !currentEntry.isContainer()) {
-            mediaQueue.add(currentEntry);
-        }
-        UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
-        queue.persistQueue(playlistName, append, configuration.path);
-        updatePlaylistsList();
-        updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
-    }
-
-    private void restorePlayList() {
-        UpnpEntryQueue queue = new UpnpEntryQueue();
-        queue.restoreQueue(playlistName, config.udn, configuration.path);
-        updateTitleSelection(queue.getEntryList());
-    }
-
-    private void deletePlaylist() {
-        UpnpControlUtil.deletePlaylist(playlistName, configuration.path);
-        updatePlaylistsList();
-        updateState(PLAYLIST, UnDefType.UNDEF);
-        updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
     }
 
     /**
@@ -494,92 +578,6 @@ public class UpnpServerHandler extends UpnpHandler {
         return list;
     }
 
-    /**
-     * Method that does a UPnP browse on a content directory. Results will be retrieved in the {@link onValueReceived}
-     * method.
-     *
-     * @param objectID content directory object
-     * @param browseFlag BrowseMetaData or BrowseDirectChildren
-     * @param filter properties to be returned
-     * @param startingIndex starting index of objects to return
-     * @param requestedCount number of objects to return, 0 for all
-     * @param sortCriteria sort criteria, example: +dc:title
-     */
-    public void browse(String objectID, String browseFlag, String filter, String startingIndex, String requestedCount,
-            String sortCriteria) {
-        CompletableFuture<Boolean> browsing = isBrowsing;
-        boolean browsed = true;
-        try {
-            if (browsing != null) {
-                // wait for maximum 2.5s until browsing is finished
-                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            }
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Exception, previous server query interrupted or timed out, trying new browse anyway");
-        }
-
-        if (browsed) {
-            isBrowsing = new CompletableFuture<Boolean>();
-
-            Map<String, String> inputs = new HashMap<>();
-            inputs.put("ObjectID", objectID);
-            inputs.put("BrowseFlag", browseFlag);
-            inputs.put("Filter", filter);
-            inputs.put("StartingIndex", startingIndex);
-            inputs.put("RequestedCount", requestedCount);
-            inputs.put("SortCriteria", sortCriteria);
-
-            invokeAction("ContentDirectory", "Browse", inputs);
-        } else {
-            logger.debug("Cannot browse, cancelled querying the server");
-        }
-    }
-
-    /**
-     * Method that does a UPnP search on a content directory. Results will be retrieved in the {@link onValueReceived}
-     * method.
-     *
-     * @param containerID content directory container
-     * @param searchCriteria search criteria, examples:
-     *            dc:title contains "song"
-     *            dc:creator contains "Springsteen"
-     *            upnp:class = "object.item.audioItem"
-     *            upnp:album contains "Born in"
-     * @param filter properties to be returned
-     * @param startingIndex starting index of objects to return
-     * @param requestedCount number of objects to return, 0 for all
-     * @param sortCriteria sort criteria, example: +dc:title
-     */
-    public void search(String containerID, String searchCriteria, String filter, String startingIndex,
-            String requestedCount, String sortCriteria) {
-        CompletableFuture<Boolean> browsing = isBrowsing;
-        boolean browsed = true;
-        try {
-            if (browsing != null) {
-                // wait for maximum 2.5s until browsing is finished
-                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            }
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Exception, previous server query interrupted or timed out, trying new search anyway");
-        }
-
-        if (browsed) {
-            isBrowsing = new CompletableFuture<Boolean>();
-
-            Map<String, String> inputs = new HashMap<>();
-            inputs.put("ContainerID", containerID);
-            inputs.put("SearchCriteria", searchCriteria);
-            inputs.put("Filter", filter);
-            inputs.put("StartingIndex", startingIndex);
-            inputs.put("RequestedCount", requestedCount);
-            inputs.put("SortCriteria", sortCriteria);
-
-            invokeAction("ContentDirectory", "Search", inputs);
-        } else {
-            logger.debug("Cannot search, cancelled querying the server");
-        }
-    }
-
     @Override
     public void onStatusChanged(boolean status) {
         logger.debug("Server status of {} changed to {}", thing.getLabel(), status);
@@ -601,16 +599,7 @@ public class UpnpServerHandler extends UpnpHandler {
         }
         switch (variable) {
             case "Result":
-                if (!((value == null) || (value.isEmpty()))) {
-                    updateTitleSelection(removeDuplicates(UpnpXMLParser.getEntriesFromXML(value)));
-                } else {
-                    updateTitleSelection(new ArrayList<UpnpEntry>());
-                }
-                CompletableFuture<Boolean> browsing = isBrowsing;
-                if (browsing != null) {
-                    browsing.complete(true); // We have received browse or search results, so can launch new browse or
-                                             // search
-                }
+                onValueReceivedResult(value);
                 break;
             case "NumberReturned":
             case "TotalMatches":
@@ -619,6 +608,19 @@ public class UpnpServerHandler extends UpnpHandler {
             default:
                 super.onValueReceived(variable, value, service);
                 break;
+        }
+    }
+
+    private void onValueReceivedResult(@Nullable String value) {
+        if (!((value == null) || (value.isEmpty()))) {
+            updateTitleSelection(removeDuplicates(UpnpXMLParser.getEntriesFromXML(value)));
+        } else {
+            updateTitleSelection(new ArrayList<UpnpEntry>());
+        }
+        CompletableFuture<Boolean> browsing = isBrowsing;
+        if (browsing != null) {
+            browsing.complete(true); // We have received browse or search results, so can launch new browse or
+                                     // search
         }
     }
 

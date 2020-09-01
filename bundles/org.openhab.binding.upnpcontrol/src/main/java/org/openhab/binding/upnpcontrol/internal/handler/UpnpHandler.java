@@ -204,6 +204,18 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         this.channelTypeProvider = channelTypeProvider;
     }
 
+    protected void updateStateDescription(ChannelUID channelUID, List<StateOption> stateOptionList) {
+        StateDescription stateDescription = StateDescriptionFragmentBuilder.create().withReadOnly(false)
+                .withOptions(stateOptionList).build().toStateDescription();
+        upnpStateDescriptionProvider.setDescription(channelUID, stateDescription);
+    }
+
+    protected void updateCommandDescription(ChannelUID channelUID, List<CommandOption> commandOptionList) {
+        CommandDescription commandDescription = CommandDescriptionBuilder.create().withCommandOptions(commandOptionList)
+                .build();
+        upnpCommandDescriptionProvider.setDescription(channelUID, commandDescription);
+    }
+
     protected void createChannel(@Nullable UpnpChannelName upnpChannelName) {
         if ((upnpChannelName != null)) {
             createChannel(upnpChannelName.getChannelId(), upnpChannelName.getLabel(), upnpChannelName.getItemType(),
@@ -243,22 +255,6 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         updatedChannels.clear();
         updatedChannelUIDs.clear();
         updateChannels = false;
-    }
-
-    protected boolean checkForConnectionIds() {
-        return checkForConnectionId(isConnectionIdSet) & checkForConnectionId(isAvTransportIdSet)
-                & checkForConnectionId(isRcsIdSet);
-    }
-
-    private boolean checkForConnectionId(@Nullable CompletableFuture<Boolean> future) {
-        try {
-            if (future != null) {
-                return future.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            }
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            return false;
-        }
-        return true;
     }
 
     /**
@@ -364,23 +360,6 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         }
     }
 
-    @Override
-    public @Nullable String getUDN() {
-        return config.udn;
-    }
-
-    protected void updateStateDescription(ChannelUID channelUID, List<StateOption> stateOptionList) {
-        StateDescription stateDescription = StateDescriptionFragmentBuilder.create().withReadOnly(false)
-                .withOptions(stateOptionList).build().toStateDescription();
-        upnpStateDescriptionProvider.setDescription(channelUID, stateDescription);
-    }
-
-    protected void updateCommandDescription(ChannelUID channelUID, List<CommandOption> commandOptionList) {
-        CommandDescription commandDescription = CommandDescriptionBuilder.create().withCommandOptions(commandOptionList)
-                .build();
-        upnpCommandDescriptionProvider.setDescription(channelUID, commandDescription);
-    }
-
     /**
      * This method wraps {@link org.eclipse.smarthome.io.transport.upnp.UpnpIOService.invokeAction}. It schedules and
      * submits the call and calls {@link onValueReceived} upon completion. All state updates or other actions depending
@@ -458,37 +437,13 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         }
         switch (variable) {
             case "ConnectionID":
-                try {
-                    connectionId = Integer.parseInt(value);
-                } catch (NumberFormatException e) {
-                    connectionId = 0;
-                }
-                CompletableFuture<Boolean> connectionIdFuture = isConnectionIdSet;
-                if (connectionIdFuture != null) {
-                    connectionIdFuture.complete(true);
-                }
+                onValueReceivedConnectionId(value);
                 break;
             case "AVTransportID":
-                try {
-                    avTransportId = Integer.parseInt(value);
-                } catch (NumberFormatException e) {
-                    avTransportId = 0;
-                }
-                CompletableFuture<Boolean> avTransportIdFuture = isAvTransportIdSet;
-                if (avTransportIdFuture != null) {
-                    avTransportIdFuture.complete(true);
-                }
+                onValueReceivedAVTransportId(value);
                 break;
             case "RcsID":
-                try {
-                    rcsId = Integer.parseInt(value);
-                } catch (NumberFormatException e) {
-                    rcsId = 0;
-                }
-                CompletableFuture<Boolean> rcsIdFuture = isRcsIdSet;
-                if (rcsIdFuture != null) {
-                    rcsIdFuture.complete(true);
-                }
+                onValueReceivedRcsId(value);
                 break;
             case "Source":
             case "Sink":
@@ -499,6 +454,63 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
             default:
                 break;
         }
+    }
+
+    private void onValueReceivedConnectionId(@Nullable String value) {
+        try {
+            connectionId = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            connectionId = 0;
+        }
+        CompletableFuture<Boolean> connectionIdFuture = isConnectionIdSet;
+        if (connectionIdFuture != null) {
+            connectionIdFuture.complete(true);
+        }
+    }
+
+    private void onValueReceivedAVTransportId(@Nullable String value) {
+        try {
+            avTransportId = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            avTransportId = 0;
+        }
+        CompletableFuture<Boolean> avTransportIdFuture = isAvTransportIdSet;
+        if (avTransportIdFuture != null) {
+            avTransportIdFuture.complete(true);
+        }
+    }
+
+    private void onValueReceivedRcsId(@Nullable String value) {
+        try {
+            rcsId = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            rcsId = 0;
+        }
+        CompletableFuture<Boolean> rcsIdFuture = isRcsIdSet;
+        if (rcsIdFuture != null) {
+            rcsIdFuture.complete(true);
+        }
+    }
+
+    @Override
+    public @Nullable String getUDN() {
+        return config.udn;
+    }
+
+    protected boolean checkForConnectionIds() {
+        return checkForConnectionId(isConnectionIdSet) & checkForConnectionId(isAvTransportIdSet)
+                & checkForConnectionId(isRcsIdSet);
+    }
+
+    private boolean checkForConnectionId(@Nullable CompletableFuture<Boolean> future) {
+        try {
+            if (future != null) {
+                return future.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            return false;
+        }
+        return true;
     }
 
     /**

@@ -27,7 +27,8 @@ import org.eclipse.smarthome.config.core.ConfigConstants;
 @NonNullByDefault
 public class UpnpControlBindingConfiguration {
 
-    private final static String DEFAULT_PATH = ConfigConstants.getUserDataFolder() + "/" + BINDING_ID + "/";
+    private final static String DEFAULT_PATH = ConfigConstants.getUserDataFolder() + File.separator + BINDING_ID
+            + File.separator;
 
     public @Nullable String path = DEFAULT_PATH;
 
@@ -43,8 +44,8 @@ public class UpnpControlBindingConfiguration {
             file = file.getParentFile();
         }
         if (file.exists()) {
-            if (!newPath.endsWith("/")) {
-                newPath = newPath + "/";
+            if (!(newPath.endsWith(File.separator) || newPath.endsWith("/"))) {
+                newPath = newPath + File.separator;
             }
             path = newPath;
         } else {

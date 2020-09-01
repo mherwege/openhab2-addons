@@ -259,34 +259,6 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     /**
-     * Called from server handler for renderer to be able to send back status to server handler
-     *
-     * @param handler
-     */
-    void setServerHandler(UpnpServerHandler handler) {
-        logger.debug("Set server handler {} on renderer {}", handler.getThing().getLabel(), thing.getLabel());
-        serverHandlers.add(handler);
-    }
-
-    /**
-     * Should be called from server handler when server stops serving this renderer
-     */
-    void unsetServerHandler() {
-        logger.debug("Unset server handler on renderer {}", thing.getLabel());
-        for (UpnpServerHandler handler : serverHandlers) {
-            Thing serverThing = handler.getThing();
-            Channel serverChannel;
-            for (String channel : SERVER_CONTROL_CHANNELS) {
-                if ((serverChannel = serverThing.getChannel(channel)) != null) {
-                    handler.updateServerState(serverChannel.getUID(), UnDefType.UNDEF);
-                }
-            }
-
-            serverHandlers.remove(handler);
-        }
-    }
-
-    /**
      * Invoke Stop on UPnP AV Transport.
      */
     public void stop() {
@@ -555,6 +527,34 @@ public class UpnpRendererHandler extends UpnpHandler {
         invokeAction("RenderingControl", "SetLoudness", inputs);
     }
 
+    /**
+     * Called from server handler for renderer to be able to send back status to server handler
+     *
+     * @param handler
+     */
+    void setServerHandler(UpnpServerHandler handler) {
+        logger.debug("Set server handler {} on renderer {}", handler.getThing().getLabel(), thing.getLabel());
+        serverHandlers.add(handler);
+    }
+
+    /**
+     * Should be called from server handler when server stops serving this renderer
+     */
+    void unsetServerHandler() {
+        logger.debug("Unset server handler on renderer {}", thing.getLabel());
+        for (UpnpServerHandler handler : serverHandlers) {
+            Thing serverThing = handler.getThing();
+            Channel serverChannel;
+            for (String channel : SERVER_CONTROL_CHANNELS) {
+                if ((serverChannel = serverThing.getChannel(channel)) != null) {
+                    handler.updateServerState(serverChannel.getUID(), UnDefType.UNDEF);
+                }
+            }
+
+            serverHandlers.remove(handler);
+        }
+    }
+
     @Override
     protected void updateState(ChannelUID channelUID, State state) {
         // override to be able to propagate channel state updates to corresponding channels on the server
@@ -576,204 +576,231 @@ public class UpnpRendererHandler extends UpnpHandler {
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("Handle command {} for channel {} on renderer {}", command, channelUID, thing.getLabel());
 
-        String transportState;
         String id = channelUID.getId();
-        if (command instanceof RefreshType) {
-            if (id.endsWith("volume")) {
-                getVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""));
-            } else if (id.endsWith("mute")) {
-                getMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""));
-            } else if (id.endsWith("loudness")) {
-                getLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""));
-            } else {
-                switch (id) {
-                    case CONTROL:
-                        transportState = this.transportState;
-                        State newState = UnDefType.UNDEF;
-                        if ("PLAYING".equals(transportState)) {
-                            newState = PlayPauseType.PLAY;
-                        } else if ("STOPPED".equals(transportState)) {
-                            newState = PlayPauseType.PAUSE;
-                        } else if ("PAUSED_PLAYBACK".equals(transportState)) {
-                            newState = PlayPauseType.PAUSE;
-                        }
-                        updateState(channelUID, newState);
-                        break;
-                    case REPEAT:
-                        updateState(channelUID, OnOffType.from(repeat));
-                        break;
-                    case SHUFFLE:
-                        updateState(channelUID, OnOffType.from(shuffle));
-                        break;
-                    case URI:
-                        updateState(channelUID, StringType.valueOf(nowPlayingUri));
-                        break;
-                    case TRACK_POSITION:
-                        updateState(channelUID, new QuantityType<>(trackPosition, SmartHomeUnits.SECOND));
-                        break;
-                    case REL_TRACK_POSITION:
-                        int relPosition = (trackDuration != 0) ? (trackPosition * 100) / trackDuration : 0;
-                        updateState(channelUID, new PercentType(relPosition));
-                        break;
-                    default:
-                        break;
-                }
-            }
+
+        if (id.endsWith("volume")) {
+            handleCommandVolume(command, id);
+        } else if (id.endsWith("mute")) {
+            handleCommandMute(command, id);
+        } else if (id.endsWith("loudness")) {
+            handleCommandLoudness(command, id);
         } else {
-            if (id.endsWith("volume") && (command instanceof PercentType)) {
-                setVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""), (PercentType) command);
-            } else if (id.endsWith("mute") && (command instanceof OnOffType)) {
-                setMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""), (OnOffType) command);
-            } else if (id.endsWith("loudness") && (command instanceof OnOffType)) {
-                setLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""), (OnOffType) command);
-            } else {
-                switch (id) {
-                    case STOP:
-                        if (OnOffType.ON.equals(command)) {
-                            updateState(CONTROL, PlayPauseType.PAUSE);
-                            stop();
-                            updateState(TRACK_POSITION, new QuantityType<>(0, SmartHomeUnits.SECOND));
-                        }
-                        break;
-                    case CONTROL:
-                        if (command instanceof PlayPauseType) {
-                            if (PlayPauseType.PLAY.equals(command)) {
-                                play();
-                            } else if (PlayPauseType.PAUSE.equals(command)) {
-                                checkPaused();
-                                pause();
-                            }
-                        } else if (command instanceof NextPreviousType) {
-                            if (NextPreviousType.NEXT.equals(command)) {
-                                serveNext();
-                            } else if (NextPreviousType.PREVIOUS.equals(command)) {
-                                servePrevious();
-                            }
-                        } else if (command instanceof RewindFastforwardType) {
-                            int pos = 0;
-                            if (RewindFastforwardType.FASTFORWARD.equals(command)) {
-                                pos = Integer.min(trackDuration, trackPosition + config.seekstep);
-                            } else if (command == RewindFastforwardType.REWIND) {
-                                pos = Integer.max(0, trackPosition - config.seekstep);
-                            }
-                            seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
-                        }
-                        break;
-                    case REPEAT:
-                        repeat = (OnOffType.ON.equals(command));
-                        currentQueue.setRepeat(repeat);
-                        updateState(channelUID, (State) command);
-                        break;
-                    case SHUFFLE:
-                        shuffle = (OnOffType.ON.equals(command));
-                        currentQueue.setShuffle(shuffle);
-                        if (!playing) {
-                            resetToStartQueue();
-                        }
-                        updateState(channelUID, (State) command);
-                        break;
-                    case URI:
-                        if (command instanceof StringType) {
-                            setCurrentURI(command.toString(), "");
-                            play();
-                        }
-                    case FAVORITE_SELECT:
-                        if (command instanceof StringType) {
-                            favoriteName = command.toString();
-                            updateState(PLAYLIST, StringType.valueOf(favoriteName));
-                            UpnpFavorite favorite = new UpnpFavorite(favoriteName, configuration.path);
-                            String uri = favorite.getUri();
-                            UpnpEntry entry = favorite.getUpnpEntry();
-                            if (!uri.isEmpty()) {
-                                String metadata = "";
-                                if (entry != null) {
-                                    metadata = UpnpXMLParser.compileMetadataString(entry);
-                                }
-                                setCurrentURI(uri, metadata);
-                                play();
-                            }
-                        }
-                        break;
-                    case FAVORITE:
-                        if (command instanceof StringType) {
-                            favoriteName = command.toString();
-                            if (favoriteStateOptionList.contains(new StateOption(favoriteName, favoriteName))) {
-                                updateState(PLAYLIST_SELECT, StringType.valueOf(favoriteName));
-                            } else {
-                                updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
-                            }
-                        }
-                        break;
-                    case FAVORITE_SAVE:
-                        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
-                            saveFavorite();
-                        }
-                        break;
-                    case FAVORITE_DELETE:
-                        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
-                            deleteFavorite();
-                        }
-                        break;
-                    case TRACK_POSITION:
-                        if (command instanceof QuantityType<?>) {
-                            QuantityType<?> position = ((QuantityType<?>) command).toUnit(SmartHomeUnits.SECOND);
-                            if (position != null) {
-                                int pos = Integer.min(trackDuration, position.intValue());
-                                seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
-                            }
-                        }
-                        break;
-                    case REL_TRACK_POSITION:
-                        if (command instanceof PercentType) {
-                            int pos = ((PercentType) command).intValue() * trackDuration / 100;
-                            seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
-                        }
-                        break;
-                    default:
-                        break;
-                }
+            switch (id) {
+                case STOP:
+                    handleCommandStop(command);
+                    break;
+                case CONTROL:
+                    handleCommandControl(channelUID, command);
+                    break;
+                case REPEAT:
+                    handleCommandRepeat(channelUID, command);
+                    break;
+                case SHUFFLE:
+                    handleCommandShuffle(channelUID, command);
+                    break;
+                case URI:
+                    handleCommandUri(channelUID, command);
+                    break;
+                case FAVORITE_SELECT:
+                    handleCommandFavoriteSelect(channelUID, command);
+                    break;
+                case FAVORITE:
+                    handleCommandFavorite(channelUID, command);
+                    break;
+                case FAVORITE_SAVE:
+                    handleCommandFavoriteSave(command);
+                    break;
+                case FAVORITE_DELETE:
+                    handleCommandFavoriteDelete(command);
+                    break;
+                case TRACK_POSITION:
+                    handleCommandTrackPosition(channelUID, command);
+                    break;
+                case REL_TRACK_POSITION:
+                    handleCommandRelTrackPosition(channelUID, command);
+                    break;
+                default:
+                    break;
             }
         }
     }
 
-    private void saveFavorite() {
-        UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
-        favorite.saveFavorite(favoriteName, configuration.path);
-        updateFavoritesList();
-        updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
+    private void handleCommandVolume(Command command, String id) {
+        if (command instanceof RefreshType) {
+            getVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""));
+        } else if (command instanceof PercentType) {
+            setVolume("volume".equals(id) ? UPNP_MASTER : id.replace("volume", ""), (PercentType) command);
+        }
     }
 
-    private void deleteFavorite() {
-        UpnpControlUtil.deleteFavorite(favoriteName, configuration.path);
-        updateFavoritesList();
-        updateState(FAVORITE, UnDefType.UNDEF);
-        updateState(FAVORITE_SELECT, UnDefType.UNDEF);
+    private void handleCommandMute(Command command, String id) {
+        if (command instanceof RefreshType) {
+            getMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""));
+        } else if (command instanceof OnOffType) {
+            setMute("mute".equals(id) ? UPNP_MASTER : id.replace("mute", ""), (OnOffType) command);
+        }
+    }
+
+    private void handleCommandLoudness(Command command, String id) {
+        if (command instanceof RefreshType) {
+            getLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""));
+        } else if (command instanceof OnOffType) {
+            setLoudness("loudness".equals(id) ? UPNP_MASTER : id.replace("loudness", ""), (OnOffType) command);
+        }
+    }
+
+    private void handleCommandStop(Command command) {
+        if (OnOffType.ON.equals(command)) {
+            updateState(CONTROL, PlayPauseType.PAUSE);
+            stop();
+            updateState(TRACK_POSITION, new QuantityType<>(0, SmartHomeUnits.SECOND));
+        }
+    }
+
+    private void handleCommandControl(ChannelUID channelUID, Command command) {
+        String transportState;
+        if (command instanceof RefreshType) {
+            transportState = this.transportState;
+            State newState = UnDefType.UNDEF;
+            if ("PLAYING".equals(transportState)) {
+                newState = PlayPauseType.PLAY;
+            } else if ("STOPPED".equals(transportState)) {
+                newState = PlayPauseType.PAUSE;
+            } else if ("PAUSED_PLAYBACK".equals(transportState)) {
+                newState = PlayPauseType.PAUSE;
+            }
+            updateState(channelUID, newState);
+        } else if (command instanceof PlayPauseType) {
+            if (PlayPauseType.PLAY.equals(command)) {
+                play();
+            } else if (PlayPauseType.PAUSE.equals(command)) {
+                checkPaused();
+                pause();
+            }
+        } else if (command instanceof NextPreviousType) {
+            if (NextPreviousType.NEXT.equals(command)) {
+                serveNext();
+            } else if (NextPreviousType.PREVIOUS.equals(command)) {
+                servePrevious();
+            }
+        } else if (command instanceof RewindFastforwardType) {
+            int pos = 0;
+            if (RewindFastforwardType.FASTFORWARD.equals(command)) {
+                pos = Integer.min(trackDuration, trackPosition + config.seekstep);
+            } else if (command == RewindFastforwardType.REWIND) {
+                pos = Integer.max(0, trackPosition - config.seekstep);
+            }
+            seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
+        }
+    }
+
+    private void handleCommandRepeat(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            updateState(channelUID, OnOffType.from(repeat));
+        } else {
+            repeat = (OnOffType.ON.equals(command));
+            currentQueue.setRepeat(repeat);
+            updateState(channelUID, (State) command);
+        }
+    }
+
+    private void handleCommandShuffle(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            updateState(channelUID, OnOffType.from(shuffle));
+        } else {
+            shuffle = (OnOffType.ON.equals(command));
+            currentQueue.setShuffle(shuffle);
+            if (!playing) {
+                resetToStartQueue();
+            }
+            updateState(channelUID, (State) command);
+        }
+    }
+
+    private void handleCommandUri(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            updateState(channelUID, StringType.valueOf(nowPlayingUri));
+        } else if (command instanceof StringType) {
+            setCurrentURI(command.toString(), "");
+            play();
+        }
+    }
+
+    private void handleCommandFavoriteSelect(ChannelUID channelUID, Command command) {
+        if (command instanceof StringType) {
+            favoriteName = command.toString();
+            updateState(FAVORITE, StringType.valueOf(favoriteName));
+            UpnpFavorite favorite = new UpnpFavorite(favoriteName, configuration.path);
+            String uri = favorite.getUri();
+            UpnpEntry entry = favorite.getUpnpEntry();
+            if (!uri.isEmpty()) {
+                String metadata = "";
+                if (entry != null) {
+                    metadata = UpnpXMLParser.compileMetadataString(entry);
+                }
+                setCurrentURI(uri, metadata);
+                play();
+            }
+            updateState(channelUID, StringType.valueOf(favoriteName));
+        }
+    }
+
+    private void handleCommandFavorite(ChannelUID channelUID, Command command) {
+        if (command instanceof StringType) {
+            favoriteName = command.toString();
+            if (favoriteStateOptionList.contains(new StateOption(favoriteName, favoriteName))) {
+                updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
+            } else {
+                updateState(FAVORITE_SELECT, UnDefType.UNDEF);
+            }
+            updateState(channelUID, StringType.valueOf(favoriteName));
+        }
+    }
+
+    private void handleCommandFavoriteSave(Command command) {
+        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
+            UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
+            favorite.saveFavorite(favoriteName, configuration.path);
+            updateFavoritesList();
+            updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
+        }
+    }
+
+    private void handleCommandFavoriteDelete(Command command) {
+        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
+            UpnpControlUtil.deleteFavorite(favoriteName, configuration.path);
+            updateFavoritesList();
+            updateState(FAVORITE, UnDefType.UNDEF);
+            updateState(FAVORITE_SELECT, UnDefType.UNDEF);
+        }
+    }
+
+    private void handleCommandTrackPosition(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            updateState(channelUID, new QuantityType<>(trackPosition, SmartHomeUnits.SECOND));
+        } else if (command instanceof QuantityType<?>) {
+            QuantityType<?> position = ((QuantityType<?>) command).toUnit(SmartHomeUnits.SECOND);
+            if (position != null) {
+                int pos = Integer.min(trackDuration, position.intValue());
+                seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
+            }
+        }
+    }
+
+    private void handleCommandRelTrackPosition(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            int relPosition = (trackDuration != 0) ? (trackPosition * 100) / trackDuration : 0;
+            updateState(channelUID, new PercentType(relPosition));
+        } else if (command instanceof PercentType) {
+            int pos = ((PercentType) command).intValue() * trackDuration / 100;
+            seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
+        }
     }
 
     private void updateFavoritesList() {
         favoriteStateOptionList = UpnpControlUtil.favorites(configuration.path).stream()
                 .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
         updateStateDescription(favoriteSelectChannelUID, favoriteStateOptionList);
-    }
-
-    /**
-     * Called before handling a pause CONTROL command. If we do not received PAUSED_PLAYBACK or STOPPED back within
-     * timeout, we will revert to playing state. This takes care of renderers that cannot pause playback.
-     */
-    private void checkPaused() {
-        paused = upnpScheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-    }
-
-    private void resetPaused() {
-        updateState(CONTROL, PlayPauseType.PLAY);
-    }
-
-    private void cancelCheckPaused() {
-        ScheduledFuture<?> future = paused;
-        if (future != null) {
-            future.cancel(true);
-            paused = null;
-        }
     }
 
     @Override
@@ -1080,11 +1107,6 @@ public class UpnpRendererHandler extends UpnpHandler {
         setExpectedTrackend();
     }
 
-    protected void setExpectedTrackend() {
-        expectedTrackend = Instant.now().toEpochMilli() + (trackDuration - trackPosition) * 1000
-                - UPNP_RESPONSE_TIMEOUT_MILLIS;
-    }
-
     @Override
     protected void updateProtocolInfo(String value) {
         sink.clear();
@@ -1116,19 +1138,6 @@ public class UpnpRendererHandler extends UpnpHandler {
             logger.debug("Device {} supports audio", thing.getLabel());
             registerAudioSink();
         }
-    }
-
-    private void registerAudioSink() {
-        if (audioSinkRegistered) {
-            logger.debug("Audio Sink already registered for renderer {}", thing.getLabel());
-            return;
-        } else if (!service.isRegistered(this)) {
-            logger.debug("Audio Sink registration for renderer {} failed, no service", thing.getLabel());
-            return;
-        }
-        logger.debug("Registering Audio Sink for renderer {}", thing.getLabel());
-        audioSinkReg.registerAudioSink(this);
-        audioSinkRegistered = true;
     }
 
     private void clearCurrentEntry() {
@@ -1256,6 +1265,31 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     /**
+     * Called before handling a pause CONTROL command. If we do not received PAUSED_PLAYBACK or STOPPED back within
+     * timeout, we will revert to playing state. This takes care of renderers that cannot pause playback.
+     */
+    private void checkPaused() {
+        paused = upnpScheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+    }
+
+    private void resetPaused() {
+        updateState(CONTROL, PlayPauseType.PLAY);
+    }
+
+    private void cancelCheckPaused() {
+        ScheduledFuture<?> future = paused;
+        if (future != null) {
+            future.cancel(true);
+            paused = null;
+        }
+    }
+
+    protected void setExpectedTrackend() {
+        expectedTrackend = Instant.now().toEpochMilli() + (trackDuration - trackPosition) * 1000
+                - UPNP_RESPONSE_TIMEOUT_MILLIS;
+    }
+
+    /**
      * Update the current track position every second if the channel is linked.
      */
     private void scheduleTrackPositionRefresh() {
@@ -1373,6 +1407,19 @@ public class UpnpRendererHandler extends UpnpHandler {
      */
     public Set<AudioFormat> getSupportedAudioFormats() {
         return supportedAudioFormats;
+    }
+
+    private void registerAudioSink() {
+        if (audioSinkRegistered) {
+            logger.debug("Audio Sink already registered for renderer {}", thing.getLabel());
+            return;
+        } else if (!service.isRegistered(this)) {
+            logger.debug("Audio Sink registration for renderer {} failed, no service", thing.getLabel());
+            return;
+        }
+        logger.debug("Registering Audio Sink for renderer {}", thing.getLabel());
+        audioSinkReg.registerAudioSink(this);
+        audioSinkRegistered = true;
     }
 
     /**
