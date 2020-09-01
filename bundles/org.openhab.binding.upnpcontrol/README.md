@@ -133,6 +133,7 @@ The `upnprenderer` has the following default channels:
 | `favorite`         | String      | RW          | set name for existing of new favorite              |
 | `favoritesave`     | Switch      | RW          | save favorite to `favorite`                        |
 | `favoritedelete`   | Switch      | RW          | delete current favorite                            |
+| `playlistselect`   | String      | RW          | queue playlist from list of saved playlists        |
 | `title`            | String      | R           | media title                                        |
 | `album`            | String      | R           | media album                                        |
 | `albumart`         | Image       | R           | image for media album                              |
@@ -173,8 +174,8 @@ No metadata for the media is available, therefore will be provided in the media 
 
 * Content served from one or multiple `upnpserver` servers:
 This is done on the `upnpserver` thing with the `upnprenderer` set the the renderer for playback.
-The media at any point in time in the `upnpserver browse` option list will be queued to the `upnprenderer` for playback after the currently playing media.
-Playback does not start automatically.
+The media at any point in time in the `upnpserver browse` option list (result from browse, search or restoring a playlist), will be queued to the `upnprenderer` for playback after the currently playing media.
+Playback does not start automatically if not yet playing.
 The `upnprenderer` will use that queue until it is replaced by another queue from the same or another `upnpserver`.
 Note that querying the content hierarchy on the `upnpserver` will update the `upnpserver browse` option list each time, and therefore the queue on the `upnprenderer` will be updated each time as long as `upnprenderer` is selected on `upnpserver`.
 
@@ -193,6 +194,7 @@ Both renderers will keep on playing the full queue they received.
 Currently playing media can be saved as favorites on the renderer.
 This is especially useful when playing streams, such as online radio, but is valid for any media.
 If the currently playing media has metadata, it will be saved with the favorite.
+
 A favorite only contains one media item.
 Selecting the favorite will only play that one item.
 Playing the server queue will resume after playing the favorite.
@@ -200,10 +202,17 @@ Playing the server queue will resume after playing the favorite.
 ### Playlists
 
 Playlists provide a way to define lists of server content for playback.
-A new playlist can be created from the selection in the `upnpserver browse` selection list.
-When restoring a playlist, the media in the playlist from the `upnpserver` thing used for restoring, will be put in the `upnpserver browse` selection list.
+
+A new playlist can be created on a server thing from the selection in the `upnpserver browse` selection list.
+When restoring a playlist on the server, the media in the playlist from the `upnpserver` thing used for restoring, will be put in the `upnpserver browse` selection list.
+
 A playlist can contain media from different servers.
 Only the media from the current server will be visible in the server when restoring.
+It is possible to append content to a playlist that already contains content from a different server.
+That way, it is possible to combine multiple sources for playback.
+
+When selecting a playlist on a renderer, the playlist will be queued immediately for playback after the currently playing entry.
+Playback will not start if not yet playing.
 
 
 ## Limitations
@@ -248,6 +257,7 @@ String FavoriteSelect "Favorite [%s]"                  (MediaRenderer) {channel=
 String Favorite  "Favorite"                            (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:favorite"}
 Switch FavoriteSave "Save"                             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:favoritesave"}
 Switch FavoriteDelete "Delete"                         (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:favoritedelete"}
+String PlaylistPlay "Playlist"                         (MediaRenderer)   {channel="upnpcontrol:upnprenderer:mymediarenderer:playlistselect"}
 String Title     "Now playing [%s]" <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:title"}
 String Album     "Album"            <text>             (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:album"}
 Image AlbumArt   "Album Art"                           (MediaRenderer) {channel="upnpcontrol:upnprenderer:mymediarenderer:albumart"}
@@ -289,6 +299,7 @@ Selection item=FavoriteSelect
 Text      item=Favorite
 Switch    item=FavoriteSave mappings=[ON="STOP"]
 Switch    item=FavoriteDelete mappings=[ON="STOP"]
+Selection item=PlaylistPlay
 Text      item=Title
 Text      item=Album
 Default   item=AlbumArt
