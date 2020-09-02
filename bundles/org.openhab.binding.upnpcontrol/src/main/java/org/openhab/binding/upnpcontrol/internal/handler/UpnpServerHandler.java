@@ -356,8 +356,8 @@ public class UpnpServerHandler extends UpnpHandler {
             }
         } else if (command instanceof RefreshType) {
             currentId = currentEntry.getId();
-            updateState(channelUID, StringType.valueOf(currentId));
         }
+        updateState(channelUID, StringType.valueOf(currentId));
     }
 
     private void handleCommandBrowse(Command command) {
@@ -445,10 +445,25 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void handleCommandPlaylistRestore(Command command) {
+        // Don't immediately restore a playlist if a browse or search is still underway, or it could get overwritten
+        CompletableFuture<Boolean> browsing = isBrowsing;
+        try {
+            if (browsing != null) {
+                // wait for maximum 2.5s until browsing is finished
+                browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.debug("Exception, previous server query interrupted or timed out, restoring playlist anyway");
+        }
+
         if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
             UpnpEntryQueue queue = new UpnpEntryQueue();
             queue.restoreQueue(playlistName, config.udn, bindingConfig.path);
             updateTitleSelection(queue.getEntryList());
+
+            UpnpEntry current = queue.get(0);
+            currentEntry = (current != null) ? current : currentEntry;
+            updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
         }
     }
 
@@ -554,11 +569,6 @@ public class UpnpServerHandler extends UpnpHandler {
                 }
                 entries.add(value);
             });
-        }
-
-        // Set the currentId to the parent of the first entry in the list
-        if (!resultList.isEmpty()) {
-            updateState(CURRENTID, StringType.valueOf(resultList.get(0).getId()));
         }
 
         logger.debug("{} entries added to selection list on server {}", commandOptionList.size(), thing.getLabel());
