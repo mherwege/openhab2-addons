@@ -128,7 +128,7 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
                 upnpStateDescriptionProvider, upnpCommandDescriptionProvider, configuration);
         String key = thing.getUID().toString();
         upnpServers.put(key, handler);
-        logger.debug("Media server handler created for {}", thing.getLabel());
+        logger.debug("Media server handler created for {} with UID {}", thing.getLabel(), thing.getUID());
         return handler;
     }
 
@@ -139,18 +139,20 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
         String key = thing.getUID().toString();
         upnpRenderers.put(key, handler);
         upnpServers.forEach((thingId, value) -> value.addRendererOption(key));
-        logger.debug("Media renderer handler created for {}", thing.getLabel());
+        logger.debug("Media renderer handler created for {} with UID {}", thing.getLabel(), thing.getUID());
 
         return handler;
     }
 
     private void removeServer(String key) {
-        logger.debug("Removing media server handler for {}", upnpServers.get(key).getThing().getLabel());
+        logger.debug("Removing media server handler for {} with UID {}", upnpServers.get(key).getThing().getLabel(),
+                upnpServers.get(key).getThing().getUID());
         upnpServers.remove(key);
     }
 
     private void removeRenderer(String key) {
-        logger.debug("Removing media renderer handler for {}", upnpRenderers.get(key).getThing().getLabel());
+        logger.debug("Removing media renderer handler for {} with UID {}", upnpRenderers.get(key).getThing().getLabel(),
+                upnpRenderers.get(key).getThing().getUID());
         if (audioSinkRegistrations.containsKey(key)) {
             logger.debug("Removing audio sink registration for {}", upnpRenderers.get(key).getThing().getLabel());
             ServiceRegistration<AudioSink> reg = audioSinkRegistrations.get(key);

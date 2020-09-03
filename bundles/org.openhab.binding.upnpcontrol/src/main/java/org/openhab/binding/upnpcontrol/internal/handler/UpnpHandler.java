@@ -134,6 +134,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         config = getConfigAs(UpnpControlConfiguration.class);
         service.registerParticipant(this);
 
+        UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
         UpnpControlUtil.playlistsSubscribe(this);
     }
 
@@ -578,5 +579,6 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         subscriptionRefreshJob = null;
     }
 
+    @Override
     public abstract void playlistsListChanged();
 }

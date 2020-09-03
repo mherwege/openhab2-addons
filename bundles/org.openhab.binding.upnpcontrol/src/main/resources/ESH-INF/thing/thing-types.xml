@@ -144,7 +144,7 @@
 		<autoUpdatePolicy>veto</autoUpdatePolicy>
 	</channel-type>
 	<channel-type id="favoritedelete">
-		<item-type>String</item-type>
+		<item-type>Switch</item-type>
 		<label>Delete favorite</label>
 		<description>Remove the current favorite from favorites</description>
 		<autoUpdatePolicy>veto</autoUpdatePolicy>
@@ -244,7 +244,7 @@
 	</channel-type>
 	<channel-type id="playlistsave">
 		<item-type>Switch</item-type>
-		<label>Save new playlist</label>
+		<label>Save playlist</label>
 		<description>Save the current selection to the selected playlist</description>
 		<autoUpdatePolicy>veto</autoUpdatePolicy>
 	</channel-type>

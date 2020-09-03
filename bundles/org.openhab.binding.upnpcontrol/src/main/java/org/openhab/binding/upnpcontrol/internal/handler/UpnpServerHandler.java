@@ -159,6 +159,12 @@ public class UpnpServerHandler extends UpnpHandler {
     protected void initJob() {
         synchronized (jobLock) {
             if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
+                if (!service.isRegistered(this)) {
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
+                            "UPnP device with UDN " + getUDN() + " not yet registered");
+                    return;
+                }
+
                 rendererStateOptionList = Collections.synchronizedList(new ArrayList<>());
                 synchronized (rendererStateOptionList) {
                     upnpRenderers.forEach((key, value) -> {
@@ -168,11 +174,15 @@ public class UpnpServerHandler extends UpnpHandler {
                 }
                 updateStateDescription(rendererChannelUID, rendererStateOptionList);
 
-                getProtocolInfo();
-
-                browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                 playlistsListChanged();
 
+                getProtocolInfo();
+
+                if (!upnpSubscribed) {
+                    addSubscriptions();
+                }
+
+                browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                 updateStatus(ThingStatus.ONLINE);
             }
         }
@@ -322,10 +332,10 @@ public class UpnpServerHandler extends UpnpHandler {
             if (config.filter) {
                 // only refresh title list if filtering by renderer capabilities
                 browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+            } else {
+                serveMedia();
             }
         }
-
-        updateState(channelUID, (State) command);
 
         if ((renderer != null) && !renderer.equals(previousRenderer)) {
             if (previousRenderer != null) {
@@ -343,6 +353,12 @@ public class UpnpServerHandler extends UpnpHandler {
             if ((channel = thing.getChannel(CONTROL)) != null) {
                 handleCommand(channel.getUID(), RefreshType.REFRESH);
             }
+        }
+
+        if ((renderer = currentRendererHandler) != null) {
+            updateState(channelUID, StringType.valueOf(renderer.getThing().getUID().toString()));
+        } else {
+            updateState(channelUID, UnDefType.UNDEF);
         }
     }
 
@@ -445,20 +461,20 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void handleCommandPlaylistRestore(Command command) {
-        // Don't immediately restore a playlist if a browse or search is still underway, or it could get overwritten
-        CompletableFuture<Boolean> browsing = isBrowsing;
-        try {
-            if (browsing != null) {
-                // wait for maximum 2.5s until browsing is finished
-                browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            }
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Exception, previous server query interrupted or timed out, restoring playlist anyway");
-        }
-
         if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+            // Don't immediately restore a playlist if a browse or search is still underway, or it could get overwritten
+            CompletableFuture<Boolean> browsing = isBrowsing;
+            try {
+                if (browsing != null) {
+                    // wait for maximum 2.5s until browsing is finished
+                    browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                }
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                logger.debug("Exception, previous server query interrupted or timed out, restoring playlist anyway");
+            }
+
             UpnpEntryQueue queue = new UpnpEntryQueue();
-            queue.restoreQueue(playlistName, config.udn, bindingConfig.path);
+            queue.restoreQueue(playlistName, config.udn, UpnpControlBindingConfiguration.path);
             updateTitleSelection(queue.getEntryList());
 
             UpnpEntry current = queue.get(0);
@@ -475,16 +491,16 @@ public class UpnpServerHandler extends UpnpHandler {
                 mediaQueue.add(currentEntry);
             }
             UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
-            queue.persistQueue(playlistName, append, bindingConfig.path);
-            UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
+            queue.persistQueue(playlistName, append, UpnpControlBindingConfiguration.path);
+            UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
             updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
         }
     }
 
     private void handleCommandPlaylistDelete(Command command) {
         if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
-            UpnpControlUtil.deletePlaylist(playlistName, bindingConfig.path);
-            UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
+            UpnpControlUtil.deletePlaylist(playlistName, UpnpControlBindingConfiguration.path);
+            UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
             updateState(PLAYLIST, UnDefType.UNDEF);
             updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
         }
@@ -687,7 +703,7 @@ public class UpnpServerHandler extends UpnpHandler {
                         handler.getThing().getLabel());
 
                 // always keep a copy of current list
-                queue.persistQueue(bindingConfig.path);
+                queue.persistQueue(UpnpControlBindingConfiguration.path);
             }
         } else {
             logger.warn("Cannot serve media from server {}, no renderer selected", thing.getLabel());

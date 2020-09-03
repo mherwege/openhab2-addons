@@ -112,23 +112,39 @@ public class UpnpRendererHandler extends UpnpHandler {
     private @NonNullByDefault({}) ChannelUID favoriteSelectChannelUID;
     private @NonNullByDefault({}) ChannelUID playlistSelectChannelUID;
 
-    private volatile String transportState = "";
-
     private volatile PercentType soundVolume = new PercentType();
     private volatile List<String> sink = new ArrayList<>();
 
+    private volatile String favoriteName = ""; // Currently selected favorite
+
+    private boolean repeat;
+    private boolean shuffle;
+
+    // Queue as received from server and current and next media entries for playback
     private volatile UpnpEntryQueue currentQueue = new UpnpEntryQueue();
-    private boolean repeat = false;
-    private boolean shuffle = false;
     private volatile @Nullable UpnpEntry currentEntry = null;
     private volatile @Nullable UpnpEntry nextEntry = null;
-    private volatile String nowPlayingUri = ""; // used to block waiting for setting URI when it is the same as current
-    private volatile String favoriteName = "";
-    private volatile boolean playerStopped;
-    private volatile boolean playing;
-    private volatile boolean playingQueue;
-    private volatile @Nullable ScheduledFuture<?> paused;
-    private volatile @Nullable CompletableFuture<Boolean> isSettingURI;
+
+    // Group of fields representing current state of player
+    private volatile String nowPlayingUri = ""; // Used to block waiting for setting URI when it is the same as current
+                                                // as some players will not send URI update when it is the same as
+                                                // previous
+    private volatile String transportState = ""; // Current transportState to be able to refresh the control
+    private volatile boolean playerStopped; // Set if the player is stopped from OH command or code, allows to identify
+                                            // if STOP came from other source when receiving STOP state from GENA event
+    private volatile boolean playing; // Set to false when a STOP is received, so we can filter two consecutive STOPs
+                                      // and not play next entry second time
+    private volatile @Nullable ScheduledFuture<?> paused; // Set when a pause command is given, to compensate for
+                                                          // renderers that cannot pause playback
+    private volatile @Nullable CompletableFuture<Boolean> isSettingURI; // Set to wait for setting URI before starting
+                                                                        // to play
+    private volatile boolean registeredQueue; // Set when registering a new queue. This allows to decide if we need just
+                                              // need to play URI, or serve the first entry in a queue when a play
+                                              // command is given.
+    private volatile boolean playingQueue; // Identifies if we are playing a queue received from a server. If so, a new
+                                           // queue received will be played after the currently playing entry.
+
+    // Track position and duration fields
     private volatile int trackDuration = 0;
     private volatile int trackPosition = 0;
     private volatile long expectedTrackend = 0;
@@ -164,6 +180,14 @@ public class UpnpRendererHandler extends UpnpHandler {
                     "Channel " + FAVORITE_SELECT + " not defined");
             return;
         }
+        Channel playlistSelectChannel = thing.getChannel(PLAYLIST_SELECT);
+        if (playlistSelectChannel != null) {
+            playlistSelectChannelUID = playlistSelectChannel.getUID();
+        } else {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                    "Channel " + PLAYLIST_SELECT + " not defined");
+            return;
+        }
 
         initDevice();
     }
@@ -184,10 +208,6 @@ public class UpnpRendererHandler extends UpnpHandler {
     protected void initJob() {
         synchronized (jobLock) {
             if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
-                if (pollingJob == null) {
-                    return;
-                }
-
                 if (!service.isRegistered(this)) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                             "UPnP device with UDN " + getUDN() + " not yet registered");
@@ -209,6 +229,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                     return;
                 }
 
+                updateFavoritesList();
                 playlistsListChanged();
 
                 getProtocolInfo();
@@ -680,7 +701,13 @@ public class UpnpRendererHandler extends UpnpHandler {
             updateState(channelUID, newState);
         } else if (command instanceof PlayPauseType) {
             if (PlayPauseType.PLAY.equals(command)) {
-                play();
+                if (registeredQueue) {
+                    registeredQueue = false;
+                    playingQueue = true;
+                    serve();
+                } else {
+                    play();
+                }
             } else if (PlayPauseType.PAUSE.equals(command)) {
                 checkPaused();
                 pause();
@@ -768,7 +795,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void handleCommandFavoriteSave(Command command) {
         if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
             UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
-            favorite.saveFavorite(favoriteName, bindingConfig.path);
+            favorite.saveFavorite(favoriteName, UpnpControlBindingConfiguration.path);
             updateFavoritesList();
             updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
         }
@@ -776,7 +803,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private void handleCommandFavoriteDelete(Command command) {
         if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
-            UpnpControlUtil.deleteFavorite(favoriteName, bindingConfig.path);
+            UpnpControlUtil.deleteFavorite(favoriteName, UpnpControlBindingConfiguration.path);
             updateFavoritesList();
             updateState(FAVORITE, UnDefType.UNDEF);
             updateState(FAVORITE_SELECT, UnDefType.UNDEF);
@@ -787,7 +814,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (command instanceof StringType) {
             String playlistName = command.toString();
             UpnpEntryQueue queue = new UpnpEntryQueue();
-            queue.restoreQueue(playlistName, null, bindingConfig.path);
+            queue.restoreQueue(playlistName, null, UpnpControlBindingConfiguration.path);
             registerQueue(queue);
         }
     }
@@ -815,7 +842,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void playFavorite() {
-        UpnpFavorite favorite = new UpnpFavorite(favoriteName, bindingConfig.path);
+        UpnpFavorite favorite = new UpnpFavorite(favoriteName, UpnpControlBindingConfiguration.path);
         String uri = favorite.getUri();
         UpnpEntry entry = favorite.getUpnpEntry();
         if (!uri.isEmpty()) {
@@ -829,15 +856,19 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void updateFavoritesList() {
-        favoriteStateOptionList = UpnpControlUtil.favorites(bindingConfig.path).stream()
-                .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
+        synchronized (favoriteStateOptionList) {
+            favoriteStateOptionList = UpnpControlUtil.favorites(UpnpControlBindingConfiguration.path).stream()
+                    .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
+        }
         updateStateDescription(favoriteSelectChannelUID, favoriteStateOptionList);
     }
 
     @Override
     public void playlistsListChanged() {
-        playlistCommandOptionList = UpnpControlUtil.playlists().stream().map(p -> (new CommandOption(p, p)))
-                .collect(Collectors.toList());
+        synchronized (playlistCommandOptionList) {
+            playlistCommandOptionList = UpnpControlUtil.playlists().stream().map(p -> (new CommandOption(p, p)))
+                    .collect(Collectors.toList());
+        }
         updateCommandDescription(playlistSelectChannelUID, playlistCommandOptionList);
     }
 
@@ -1025,12 +1056,15 @@ public class UpnpRendererHandler extends UpnpHandler {
                             serveNext();
                         }
                     }
+                } else if (playingQueue) {
+                    playingQueue = false;
                 }
             }
             playing = false;
         } else if ("PLAYING".equals(value)) {
             playerStopped = false;
             playing = true;
+            registeredQueue = false; // reset queue registration flag as we seem to be playing something
             updateState(CONTROL, PlayPauseType.PLAY);
             scheduleTrackPositionRefresh();
         } else if ("PAUSED_PLAYBACK".equals(value)) {
@@ -1069,7 +1103,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         updateState(URI, StringType.valueOf(uri));
 
         if (!uri.equals(currentUri)) {
-            if (uri.equals(nextUri) && (next != null)) {
+            if ((next != null) && uri.equals(nextUri)) {
                 // Renderer advanced to next entry independent of openHAB UPnP control point.
                 // Advance in the queue to keep proper position status.
                 // Make the next entry available to renderers that support it.
@@ -1089,7 +1123,6 @@ public class UpnpRendererHandler extends UpnpHandler {
                 // A new entry is being served that does not match the next entry in the queue. This can be because a
                 // sound or stream is being played through an action, or another control point started a new entry.
                 // We should clear the metadata in this case and wait for new metadata to arrive.
-                playingQueue = false;
                 clearMetaDataState();
             }
         }
@@ -1199,6 +1232,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      */
     public void registerQueue(UpnpEntryQueue queue) {
         logger.debug("Registering queue on renderer {}", thing.getLabel());
+        registeredQueue = true;
         currentQueue = queue;
         currentQueue.setRepeat(repeat);
         currentQueue.setShuffle(shuffle);
@@ -1251,6 +1285,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private void resetToStartQueue() {
         playing = false;
+        playingQueue = false;
         stop();
 
         currentQueue.resetIndex(); // reset to beginning of queue
@@ -1259,6 +1294,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         logger.trace("Reset queue, current queue index: {}", currentQueue.index());
         UpnpEntry entry = currentEntry;
         if (entry != null) {
+            clearMetaDataState();
             updateMetaDataState(entry);
             setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
         } else {
@@ -1267,20 +1303,21 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     /**
-     * Play media.
+     * Serve media from a queue and play immediately when already playing.
      *
      * @param media
      */
     private void serve() {
         UpnpEntry entry = currentEntry;
         if (entry != null) {
-            updateMetaDataState(entry);
+            clearMetaDataState();
             String res = entry.getRes();
             if (res.isEmpty()) {
                 logger.debug("Cannot serve media '{}', no URI", currentEntry);
-                playingQueue = true;
+                playingQueue = false;
                 return;
             }
+            updateMetaDataState(entry);
             setCurrentURI(res, UpnpXMLParser.compileMetadataString(entry));
 
             if (playingQueue || playing) {
