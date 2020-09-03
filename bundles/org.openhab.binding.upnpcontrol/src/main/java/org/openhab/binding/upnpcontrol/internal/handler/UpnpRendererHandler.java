@@ -816,6 +816,9 @@ public class UpnpRendererHandler extends UpnpHandler {
             UpnpEntryQueue queue = new UpnpEntryQueue();
             queue.restoreQueue(playlistName, null, UpnpControlBindingConfiguration.path);
             registerQueue(queue);
+            resetToStartQueue();
+            playingQueue = true;
+            serve();
         }
     }
 
