@@ -59,7 +59,6 @@ import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.CommandOption;
 import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
-import org.eclipse.smarthome.core.types.StateOption;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.net.http.HttpUtil;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
@@ -106,7 +105,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     protected @NonNullByDefault({}) UpnpControlRendererConfiguration config;
     private @Nullable UpnpRenderingControlConfiguration renderingControlConfiguration;
 
-    private volatile List<StateOption> favoriteStateOptionList = Collections.synchronizedList(new ArrayList<>());
+    private volatile List<CommandOption> favoriteCommandOptionList = Collections.synchronizedList(new ArrayList<>());
     private volatile List<CommandOption> playlistCommandOptionList = Collections.synchronizedList(new ArrayList<>());
 
     private @NonNullByDefault({}) ChannelUID favoriteSelectChannelUID;
@@ -762,34 +761,21 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void handleCommandFavoriteSelect(ChannelUID channelUID, Command command) {
-        if (command instanceof RefreshType) {
-            if (favoriteName.isEmpty()
-                    || !favoriteStateOptionList.stream().anyMatch(o -> favoriteName.equals(o.getLabel()))) {
-                updateState(channelUID, UnDefType.UNDEF);
-            } else {
-                updateState(channelUID, StringType.valueOf(favoriteName));
-            }
-        } else if (command instanceof StringType) {
+        if (command instanceof StringType) {
             favoriteName = command.toString();
             updateState(FAVORITE, StringType.valueOf(favoriteName));
             playFavorite();
-            updateState(channelUID, StringType.valueOf(favoriteName));
         }
     }
 
     private void handleCommandFavorite(ChannelUID channelUID, Command command) {
-        if (command instanceof RefreshType) {
-            updateState(channelUID, StringType.valueOf(favoriteName));
-        } else if (command instanceof StringType) {
+        if (command instanceof StringType) {
             favoriteName = command.toString();
-            if (favoriteStateOptionList.contains(new StateOption(favoriteName, favoriteName))) {
-                updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
+            if (favoriteCommandOptionList.contains(new CommandOption(favoriteName, favoriteName))) {
                 playFavorite();
-            } else {
-                updateState(FAVORITE_SELECT, UnDefType.UNDEF);
             }
-            updateState(channelUID, StringType.valueOf(favoriteName));
         }
+        updateState(channelUID, StringType.valueOf(favoriteName));
     }
 
     private void handleCommandFavoriteSave(Command command) {
@@ -797,7 +783,6 @@ public class UpnpRendererHandler extends UpnpHandler {
             UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
             favorite.saveFavorite(favoriteName, UpnpControlBindingConfiguration.path);
             updateFavoritesList();
-            updateState(FAVORITE_SELECT, StringType.valueOf(favoriteName));
         }
     }
 
@@ -806,7 +791,6 @@ public class UpnpRendererHandler extends UpnpHandler {
             UpnpControlUtil.deleteFavorite(favoriteName, UpnpControlBindingConfiguration.path);
             updateFavoritesList();
             updateState(FAVORITE, UnDefType.UNDEF);
-            updateState(FAVORITE_SELECT, UnDefType.UNDEF);
         }
     }
 
@@ -859,11 +843,11 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void updateFavoritesList() {
-        synchronized (favoriteStateOptionList) {
-            favoriteStateOptionList = UpnpControlUtil.favorites(UpnpControlBindingConfiguration.path).stream()
-                    .map(p -> (new StateOption(p, p))).collect(Collectors.toList());
+        synchronized (favoriteCommandOptionList) {
+            favoriteCommandOptionList = UpnpControlUtil.favorites(UpnpControlBindingConfiguration.path).stream()
+                    .map(p -> (new CommandOption(p, p))).collect(Collectors.toList());
         }
-        updateStateDescription(favoriteSelectChannelUID, favoriteStateOptionList);
+        updateCommandDescription(favoriteSelectChannelUID, favoriteCommandOptionList);
     }
 
     @Override

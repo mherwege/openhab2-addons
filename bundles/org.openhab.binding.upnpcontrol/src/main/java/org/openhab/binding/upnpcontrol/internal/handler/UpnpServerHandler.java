@@ -78,7 +78,7 @@ public class UpnpServerHandler extends UpnpHandler {
     private volatile @Nullable UpnpRendererHandler currentRendererHandler;
     private volatile List<StateOption> rendererStateOptionList = Collections.synchronizedList(new ArrayList<>());
 
-    private volatile List<StateOption> playlistStateOptionList = Collections.synchronizedList(new ArrayList<>());
+    private volatile List<CommandOption> playlistCommandOptionList = Collections.synchronizedList(new ArrayList<>());
 
     private @NonNullByDefault({}) ChannelUID rendererChannelUID;
     private @NonNullByDefault({}) ChannelUID currentSelectionChannelUID;
@@ -433,31 +433,17 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void handleCommandPlaylistSelect(ChannelUID channelUID, Command command) {
-        if (command instanceof RefreshType) {
-            if (playlistName.isEmpty()
-                    || !playlistStateOptionList.stream().anyMatch(o -> playlistName.equals(o.getLabel()))) {
-                updateState(channelUID, UnDefType.UNDEF);
-            } else {
-                updateState(channelUID, StringType.valueOf(playlistName));
-            }
-        } else if (command instanceof StringType) {
+        if (command instanceof StringType) {
             playlistName = command.toString();
             updateState(PLAYLIST, StringType.valueOf(playlistName));
-            updateState(channelUID, (State) command);
         }
     }
 
     private void handleCommandPlaylist(ChannelUID channelUID, Command command) {
-        if (command instanceof RefreshType) {
-            updateState(channelUID, StringType.valueOf(playlistName));
-        } else if (command instanceof StringType) {
+        if (command instanceof StringType) {
             playlistName = command.toString();
-            if (playlistStateOptionList.contains(new StateOption(playlistName, playlistName))) {
-                updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
-            } else {
-                updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
-            }
         }
+        updateState(channelUID, StringType.valueOf(playlistName));
     }
 
     private void handleCommandPlaylistRestore(Command command) {
@@ -503,7 +489,6 @@ public class UpnpServerHandler extends UpnpHandler {
             UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
             queue.persistQueue(playlistName, append, UpnpControlBindingConfiguration.path);
             UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
-            updateState(PLAYLIST_SELECT, StringType.valueOf(playlistName));
         }
     }
 
@@ -512,7 +497,6 @@ public class UpnpServerHandler extends UpnpHandler {
             UpnpControlUtil.deletePlaylist(playlistName, UpnpControlBindingConfiguration.path);
             UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
             updateState(PLAYLIST, UnDefType.UNDEF);
-            updateState(PLAYLIST_SELECT, UnDefType.UNDEF);
         }
     }
 
@@ -562,9 +546,9 @@ public class UpnpServerHandler extends UpnpHandler {
 
     @Override
     public void playlistsListChanged() {
-        playlistStateOptionList = UpnpControlUtil.playlists().stream().map(p -> (new StateOption(p, p)))
+        playlistCommandOptionList = UpnpControlUtil.playlists().stream().map(p -> (new CommandOption(p, p)))
                 .collect(Collectors.toList());
-        updateStateDescription(playlistSelectChannelUID, playlistStateOptionList);
+        updateCommandDescription(playlistSelectChannelUID, playlistCommandOptionList);
     }
 
     private void updateTitleSelection(List<UpnpEntry> titleList) {
