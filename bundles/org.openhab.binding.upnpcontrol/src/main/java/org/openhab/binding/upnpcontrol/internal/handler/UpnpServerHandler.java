@@ -477,8 +477,18 @@ public class UpnpServerHandler extends UpnpHandler {
             queue.restoreQueue(playlistName, config.udn, UpnpControlBindingConfiguration.path);
             updateTitleSelection(queue.getEntryList());
 
+            UpnpEntry parentEntry = null;
             UpnpEntry current = queue.get(0);
-            currentEntry = (current != null) ? current : currentEntry;
+            if (current != null) {
+                parentEntry = parentMap.get(current.getParentId());
+            }
+            if (parentEntry == null) {
+                // No entries in restored queue, or we cannot find the parent of the first element in the queue in our
+                // parentMap cache
+                parentEntry = parentMap.get(DIRECTORY_ROOT);
+                logger.debug("Restoring playlist, no known parent for first entry, setting currentId to root");
+            }
+            currentEntry = parentEntry;
             updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
         }
     }
