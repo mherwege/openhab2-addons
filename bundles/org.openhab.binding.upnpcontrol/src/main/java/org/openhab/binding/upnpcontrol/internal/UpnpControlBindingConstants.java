@@ -91,6 +91,7 @@ public class UpnpControlBindingConstants {
     public static final String CONFIG_FILTER = "filter";
     public static final String SORT_CRITERIA = "sortcriteria";
     public static final String SEEK_STEP = "seekstep";
+    public static final String BROWSE_DOWN = "browsedown";
 
     // Master volume and mute identifier
     public static final String UPNP_MASTER = "Master";

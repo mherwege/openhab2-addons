@@ -643,12 +643,25 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     private void onValueReceivedResult(@Nullable String value) {
+        CompletableFuture<Boolean> browsing = isBrowsing;
         if (!((value == null) || (value.isEmpty()))) {
-            updateTitleSelection(removeDuplicates(UpnpXMLParser.getEntriesFromXML(value)));
+            List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
+            if (config.browsedown && (list.size() == 1) && list.get(0).isContainer()) {
+                // We only received one container entry, so we immediately browse to the next level if config.browsedown
+                // = true
+                if (browsing != null) {
+                    browsing.complete(true); // Clear previous browse flag before starting new browse
+                }
+                String browseTarget = list.get(0).getId();
+                parentMap.put(browseTarget, list.get(0));
+                logger.debug("Browsing down one level to the unique container result {}", browseTarget);
+                browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+            } else {
+                updateTitleSelection(removeDuplicates(UpnpXMLParser.getEntriesFromXML(value)));
+            }
         } else {
             updateTitleSelection(new ArrayList<UpnpEntry>());
         }
-        CompletableFuture<Boolean> browsing = isBrowsing;
         if (browsing != null) {
             browsing.complete(true); // We have received browse or search results, so can launch new browse or
                                      // search

@@ -102,6 +102,12 @@
 					criteria will depend on the media server</description>
 				<default>+dc:title</default>
 			</parameter>
+			<parameter name="browsedown" type="boolean" required="false">
+				<label>Auto Browse Down</label>
+				<description>When browse or search results in exactly one container entry, iteratively browse down until the
+					result contains multiple container entries or at least one media entry</description>
+				<default>true</default>
+			</parameter>
 		</config-description>
 	</thing-type>
 

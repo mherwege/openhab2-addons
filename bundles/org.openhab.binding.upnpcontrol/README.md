@@ -50,10 +50,14 @@ O turns off polling.
 Additionally, a `upnpserver` device has the following optional configuration parameters:
 
 * `filter`: when true, only list content that is playable on the renderer, default is `false`.
+
 * `sortcriteria`: Sort criteria for the titles in the selection list and when sending for playing to a renderer.
 The criteria are defined in UPnP sort criteria format, examples: `+dc:title`, `-dc:creator`, `+upnp:album`.
 Support for sort criteria will depend on the media server.
 The default is to sort ascending on title, `+dc:title`.
+
+* `browsedown`: When browse or search results in exactly one container entry, iteratively browse down until the result contains multiple container entries or at least one media entry.
+The default is `true`.
 
 A `upnprenderer` has the following optional configuration parameter:
 
@@ -85,6 +89,7 @@ Setting this to 0 will reposition to the top of the content hierarchy.
 The browsing will start at the top of the content directory tree and allows you to go down and up (represented by ..) in the tree.
 The list of containers (directories) and media entries for selection in the content hierarchy is updated dynamically when selecting a container or entry.
 All media in the selection list, playable on the currently selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
+The `browsedown` configuration parameter influences the result in such a way that, for `browsedown = true`, if the result only contains exactly one container entry, the result will be the content of the container and not the container itself.
 
 * `search` (String, W): Search for media content on the server.
 Search criteria are defined in UPnP search criteria format.
@@ -93,6 +98,7 @@ The search starts at the value of the `currentid` channel and searches down from
 The result (media and containers) will be available in the `browse` command option list.
 The `currentid` channel will be put to the id of the top container where the search started.
 All media in the search result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
+The `browsedown` configuration parameter influences the result in such a way that, for `browsedown = true`, if the result only contains exactly one container entry, the result will be the content of the container and not the container itself.
 
 * `playlistselect` (String, W): Select a playlist from the available playlists currently saved on disk.
 This will also update `playlist` with the selected value.
@@ -212,6 +218,28 @@ That way, it is possible to combine multiple sources for playback.
 
 When selecting a playlist on a renderer, the playlist will be queued immediately for playback after the currently playing entry.
 Playback will not start if not yet playing.
+
+
+## Using Search
+
+Searching content on a media server may take a lot of time, depending on the functionality and the performance of the media server.
+Therefore, it may very well be that media server searches time out.
+
+Rather than searching for individual items, it is therefore often better to search for containers or playlists.
+
+For example:
+
+* `upnp:class derivedfrom "object.item.audioItem.musicTrack" and dc:title contains "Fight For Your Right"` would search for all music tracks with "Fight For Your Right" in the title.
+This search is potentially slow.
+
+* `dc:title contains "Evening" and upnp:class = "object.container.playlistContainer"` would search for all playlists with "Evening" in the name.
+
+* `dc:title = "Donnie Darko" and upnp:class = "object.container.playlistContainer"` would search for a playlist with a specific name.
+
+With the last example, if the `browsedown` configuration parameter is `true`, the result will not be the playlist, but the content of the playlist.
+This allows immediately starting a play command without having to browse down to the first result of the list (the unique container).
+This is especially useful when doing searches and starting to play in scripts, as the play command can immediately follow the search for a unique container, without a need to browse down to a media ID that is hidden in the browse option list.
+For interactive use through a UI, you may opt to switch the `browsedown` configuration parameter to `false` to see all levels in the browsing hierarchy.
 
 
 ## Limitations
