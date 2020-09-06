@@ -85,6 +85,8 @@ public class UpnpServerHandler extends UpnpHandler {
     private @NonNullByDefault({}) ChannelUID playlistSelectChannelUID;
 
     private volatile @Nullable CompletableFuture<Boolean> isBrowsing;
+    private volatile boolean browseUp = false; // used to avoid automatically going down a level if only one container
+                                               // entry found when going up in the hierarchy
 
     private volatile UpnpEntry currentEntry = new UpnpEntry(DIRECTORY_ROOT, DIRECTORY_ROOT, DIRECTORY_ROOT,
             "object.container");
@@ -401,6 +403,7 @@ public class UpnpServerHandler extends UpnpHandler {
                         browseTarget = DIRECTORY_ROOT;
                     }
                     currentEntry = parentMap.get(browseTarget);
+                    browseUp = true;
                 }
                 logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
                 updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
@@ -646,22 +649,24 @@ public class UpnpServerHandler extends UpnpHandler {
         CompletableFuture<Boolean> browsing = isBrowsing;
         if (!((value == null) || (value.isEmpty()))) {
             List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
-            if (config.browsedown && (list.size() == 1) && list.get(0).isContainer()) {
+            if (config.browsedown && (list.size() == 1) && list.get(0).isContainer() && !browseUp) {
                 // We only received one container entry, so we immediately browse to the next level if config.browsedown
                 // = true
                 if (browsing != null) {
                     browsing.complete(true); // Clear previous browse flag before starting new browse
                 }
-                String browseTarget = list.get(0).getId();
-                parentMap.put(browseTarget, list.get(0));
+                currentEntry = list.get(0);
+                String browseTarget = currentEntry.getId();
+                parentMap.put(browseTarget, currentEntry);
                 logger.debug("Browsing down one level to the unique container result {}", browseTarget);
                 browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
             } else {
-                updateTitleSelection(removeDuplicates(UpnpXMLParser.getEntriesFromXML(value)));
+                updateTitleSelection(removeDuplicates(list));
             }
         } else {
             updateTitleSelection(new ArrayList<UpnpEntry>());
         }
+        browseUp = false;
         if (browsing != null) {
             browsing.complete(true); // We have received browse or search results, so can launch new browse or
                                      // search
