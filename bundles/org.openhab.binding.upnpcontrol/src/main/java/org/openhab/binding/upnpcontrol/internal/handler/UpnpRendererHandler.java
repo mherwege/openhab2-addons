@@ -1322,9 +1322,9 @@ public class UpnpRendererHandler extends UpnpHandler {
                 if (next != null) {
                     setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
                 }
-            }
 
-            playingQueue = true;
+                playingQueue = true;
+            }
         }
     }
 
