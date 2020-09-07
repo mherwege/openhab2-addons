@@ -119,6 +119,9 @@ public class UpnpRendererHandler extends UpnpHandler {
     private boolean repeat;
     private boolean shuffle;
 
+    private boolean onlyplayone; // Set to true if we only want to play one at a time
+    private boolean oneplayed; // When playing one at a time, set to true when the one is being played
+
     // Queue as received from server and current and next media entries for playback
     private volatile UpnpEntryQueue currentQueue = new UpnpEntryQueue();
     private volatile @Nullable UpnpEntry currentEntry = null;
@@ -622,6 +625,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                     break;
                 case SHUFFLE:
                     handleCommandShuffle(channelUID, command);
+                case ONLY_PLAY_ONE:
+                    handleCommandOnlyPlayOne(channelUID, command);
                     break;
                 case URI:
                     handleCommandUri(channelUID, command);
@@ -703,6 +708,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 if (registeredQueue) {
                     registeredQueue = false;
                     playingQueue = true;
+                    oneplayed = false;
                     serve();
                 } else {
                     play();
@@ -747,6 +753,16 @@ public class UpnpRendererHandler extends UpnpHandler {
             if (!playing) {
                 resetToStartQueue();
             }
+            updateState(channelUID, (State) command);
+        }
+    }
+
+    private void handleCommandOnlyPlayOne(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            updateState(channelUID, OnOffType.from(onlyplayone));
+        } else {
+            onlyplayone = (OnOffType.ON.equals(command));
+            oneplayed = (onlyplayone && playing) ? true : false;
             updateState(channelUID, (State) command);
         }
     }
@@ -1105,7 +1121,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
                 // look one further to get next entry for next URI
                 next = nextEntry;
-                if (next != null) {
+                if ((next != null) && !onlyplayone) {
                     setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
                 }
             } else {
@@ -1228,7 +1244,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (playingQueue) {
             nextEntry = currentQueue.get(currentQueue.nextIndex());
             UpnpEntry next = nextEntry;
-            if (next != null) {
+            if ((next != null) && !onlyplayone) {
                 // make the next entry available to renderers that support it
                 logger.trace("Still playing, set new queue as next entry");
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
@@ -1309,7 +1325,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             updateMetaDataState(entry);
             setCurrentURI(res, UpnpXMLParser.compileMetadataString(entry));
 
-            if (playingQueue || playing) {
+            if ((playingQueue || playing) && !oneplayed) {
                 logger.trace("Ready to play '{}' from queue", currentEntry);
 
                 trackDuration = 0;
@@ -1322,6 +1338,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                 if (next != null) {
                     setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
                 }
+
+                oneplayed = onlyplayone ? true : false;
 
                 playingQueue = true;
             }

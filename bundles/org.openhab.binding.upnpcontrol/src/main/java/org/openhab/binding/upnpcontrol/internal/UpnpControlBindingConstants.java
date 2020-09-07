@@ -38,11 +38,18 @@ public class UpnpControlBindingConstants {
     public static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Stream.of(THING_TYPE_RENDERER, THING_TYPE_SERVER)
             .collect(Collectors.toSet());
 
-    // List of thing parameter names
-    public static final String HOST_PARAMETER = "ipAddress";
-    public static final String TCP_PORT_PARAMETER = "port";
+    // Binding config parameters
+    public static final String PATH = "path";
+
+    // Thing config parameters
     public static final String UDN_PARAMETER = "udn";
     public static final String REFRESH_INTERVAL = "refreshInterval";
+    // Server thing only config parameters
+    public static final String CONFIG_FILTER = "filter";
+    public static final String SORT_CRITERIA = "sortcriteria";
+    public static final String BROWSE_DOWN = "browsedown";
+    // Renderer thing only config parameters
+    public static final String SEEK_STEP = "seekstep";
 
     // List of all Channel ids
     public static final String VOLUME = "volume";
@@ -51,6 +58,7 @@ public class UpnpControlBindingConstants {
     public static final String STOP = "stop";
     public static final String REPEAT = "repeat";
     public static final String SHUFFLE = "shuffle";
+    public static final String ONLY_PLAY_ONE = "onlyplayone";
     public static final String URI = "uri";
     public static final String FAVORITE_SELECT = "favoriteselect";
     public static final String FAVORITE = "favorite";
@@ -83,15 +91,6 @@ public class UpnpControlBindingConstants {
     // channels that are duplicated on server to control current renderer
     public static final Set<String> SERVER_CONTROL_CHANNELS = Stream.of(VOLUME, MUTE, CONTROL, STOP)
             .collect(Collectors.toSet());
-
-    // Binding config properties
-    public static final String PATH = "path";
-
-    // Thing config properties
-    public static final String CONFIG_FILTER = "filter";
-    public static final String SORT_CRITERIA = "sortcriteria";
-    public static final String SEEK_STEP = "seekstep";
-    public static final String BROWSE_DOWN = "browsedown";
 
     // Master volume and mute identifier
     public static final String UPNP_MASTER = "Master";

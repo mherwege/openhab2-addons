@@ -17,6 +17,7 @@
 
 			<channel id="repeat" typeId="repeat"/>
 			<channel id="shuffle" typeId="shuffle"/>
+			<channel id="onlyplayone" typeId="onlyplayone"/>
 
 			<channel id="uri" typeId="uri"/>
 			<channel id="favoriteselect" typeId="favoriteselect"/>
@@ -105,7 +106,8 @@
 			<parameter name="browsedown" type="boolean" required="false">
 				<label>Auto Browse Down</label>
 				<description>When browse or search results in exactly one container entry, iteratively browse down until the
-					result contains multiple container entries or at least one media entry</description>
+					result
+					contains multiple container entries or at least one media entry</description>
 				<default>true</default>
 			</parameter>
 		</config-description>
@@ -127,6 +129,11 @@
 		<item-type>Switch</item-type>
 		<label>Shuffle</label>
 		<description>Random shuffle the selection</description>
+	</channel-type>
+	<channel-type id="onlyplayone">
+		<item-type>Switch</item-type>
+		<label>Only Play One</label>
+		<description>Stop playback after playing one media entry from queue</description>
 	</channel-type>
 	<channel-type id="uri">
 		<item-type>String</item-type>

@@ -133,6 +133,7 @@ The `upnprenderer` has the following default channels:
 | `stop`             | Switch      | W           | stop media playback                                |
 | `repeat`           | Switch      | RW          | continuous play of media queue, restart at end     |
 | `shuffle`          | Switch      | RW          | continuous random play of media queue              |
+| `onlyplayone`      | Switch      | RW          | only play one media entry from the queue at a time |
 | `uri`              | String      | RW          | URI of currently playing media                     |
 | `favoriteselect`   | String      | W           | play favorite from list of saved favorites         |
 | `favorite`         | String      | RW          | set name for existing of new favorite              |
@@ -193,6 +194,13 @@ The content queue will be served to the renderer, a play command on the renderer
 Select another renderer on the server.
 The same or new (after another content selection) queue will be served to the second renderer.
 Both renderers will keep on playing the full queue they received.
+
+When serving a queue from a server, the renderer can be put in "only play one" mode by putting the `onlyplayone` channel to true.
+A subsequent play command will only play one media entry from the queue while respecting `shuffle` and `repeat`.
+To play the next media from the queue, a new play command will be required after the player stopped.
+An example of usage could be playing a single random sound from a playlist when you are away from home and an intrusion is detected.
+A script could put the player in `shuffle` and `onlyplayone` mode and serve a playlist.
+Only one random sound from the playlist would be played.
 
 ### Favorites
 
