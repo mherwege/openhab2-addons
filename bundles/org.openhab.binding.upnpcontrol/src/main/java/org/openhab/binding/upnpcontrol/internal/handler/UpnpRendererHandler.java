@@ -1107,6 +1107,10 @@ public class UpnpRendererHandler extends UpnpHandler {
         nowPlayingUri = uri;
         updateState(URI, StringType.valueOf(uri));
 
+        logger.trace("Received URI: {}", uri);
+        logger.trace("Current URI: {}, equal to received URI {}", currentUri, uri.equals(currentUri));
+        logger.trace("Next URI: {}", nextUri);
+
         if (!uri.equals(currentUri)) {
             if ((next != null) && uri.equals(nextUri)) {
                 // Renderer advanced to next entry independent of openHAB UPnP control point.
