@@ -1057,6 +1057,8 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else if ("PAUSED_PLAYBACK".equals(value)) {
             cancelCheckPaused();
             updateState(CONTROL, PlayPauseType.PAUSE);
+        } else if ("NO_MEDIA_PRESENT".equals(value)) {
+            updateState(CONTROL, UnDefType.UNDEF);
         }
     }
 
