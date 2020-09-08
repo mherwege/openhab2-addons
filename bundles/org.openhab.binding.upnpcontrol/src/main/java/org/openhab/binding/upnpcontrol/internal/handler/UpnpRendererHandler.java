@@ -1067,7 +1067,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else if ("PLAYING".equals(value)) {
             playerStopped = false;
             playing = true;
-            registeredQueue = false; // reset queue registration flag as we seem to be playing something
+            registeredQueue = false; // reset queue registration flag as we are playing something
             updateState(CONTROL, PlayPauseType.PLAY);
             scheduleTrackPositionRefresh();
         } else if ("PAUSED_PLAYBACK".equals(value)) {
@@ -1248,7 +1248,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (playingQueue) {
             nextEntry = currentQueue.get(currentQueue.nextIndex());
             UpnpEntry next = nextEntry;
-            if ((next != null) && !onlyplayone) {
+            if (next != null) {
                 // make the next entry available to renderers that support it
                 logger.trace("Still playing, set new queue as next entry");
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
@@ -1301,13 +1301,20 @@ public class UpnpRendererHandler extends UpnpHandler {
         currentEntry = currentQueue.next();
         nextEntry = currentQueue.get(currentQueue.nextIndex());
         logger.trace("Reset queue, current queue index: {}", currentQueue.index());
-        UpnpEntry entry = currentEntry;
-        if (entry != null) {
+        UpnpEntry current = currentEntry;
+        if (current != null) {
             clearMetaDataState();
-            updateMetaDataState(entry);
-            setCurrentURI(entry.getRes(), UpnpXMLParser.compileMetadataString(entry));
+            updateMetaDataState(current);
+            setCurrentURI(current.getRes(), UpnpXMLParser.compileMetadataString(current));
         } else {
             clearCurrentEntry();
+        }
+
+        UpnpEntry next = nextEntry;
+        if (onlyplayone) {
+            setNextURI("", "");
+        } else if (next != null) {
+            setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
         }
     }
 
@@ -1329,7 +1336,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             updateMetaDataState(entry);
             setCurrentURI(res, UpnpXMLParser.compileMetadataString(entry));
 
-            if ((playingQueue || playing) && !oneplayed) {
+            if ((playingQueue || playing) && !(onlyplayone && oneplayed)) {
                 logger.trace("Ready to play '{}' from queue", currentEntry);
 
                 trackDuration = 0;
@@ -1338,13 +1345,14 @@ public class UpnpRendererHandler extends UpnpHandler {
                 play();
 
                 // make the next entry available to renderers that support it
-                UpnpEntry next = nextEntry;
-                if (next != null) {
-                    setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
+                if (!onlyplayone) {
+                    UpnpEntry next = nextEntry;
+                    if (next != null) {
+                        setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
+                    }
                 }
 
-                oneplayed = onlyplayone ? true : false;
-
+                oneplayed = true;
                 playingQueue = true;
             }
         }
@@ -1418,8 +1426,8 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (playingQueue) {
             entry = currentEntry;
         }
-        String mediaRes = media.getRes();
-        String entryRes = (entry != null) ? entry.getRes() : "";
+        String mediaRes = media.getRes().trim();
+        String entryRes = (entry != null) ? entry.getRes().trim() : "";
 
         try {
             String mediaUrl = URLDecoder.decode(mediaRes, StandardCharsets.UTF_8.name());
