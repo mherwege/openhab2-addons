@@ -370,6 +370,7 @@ public class UpnpServerHandler extends UpnpHandler {
             currentId = String.valueOf(command);
             logger.debug("Setting currentId to {}", currentId);
             if (!currentId.isEmpty()) {
+                currentEntry = parentMap.get(currentId);
                 browse(currentId, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
             }
         } else if (command instanceof RefreshType) {
@@ -658,6 +659,7 @@ public class UpnpServerHandler extends UpnpHandler {
                 currentEntry = list.get(0);
                 String browseTarget = currentEntry.getId();
                 parentMap.put(browseTarget, currentEntry);
+                updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
                 logger.debug("Browsing down one level to the unique container result {}", browseTarget);
                 browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
             } else {
