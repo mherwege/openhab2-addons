@@ -743,7 +743,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else {
             repeat = (OnOffType.ON.equals(command));
             currentQueue.setRepeat(repeat);
-            updateState(channelUID, (State) command);
+            updateState(channelUID, OnOffType.from(repeat));
         }
     }
 
@@ -756,7 +756,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             if (!playing) {
                 resetToStartQueue();
             }
-            updateState(channelUID, (State) command);
+            updateState(channelUID, OnOffType.from(shuffle));
         }
     }
 
@@ -766,7 +766,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else {
             onlyplayone = (OnOffType.ON.equals(command));
             oneplayed = (onlyplayone && playing) ? true : false;
-            updateState(channelUID, (State) command);
+            updateState(channelUID, OnOffType.from(onlyplayone));
         }
     }
 
