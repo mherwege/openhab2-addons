@@ -311,6 +311,16 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     }
 
     /**
+     * Invoke GetCurrentConnectionIDs on the UPnP Connection Manager.
+     * Result is received in {@link onValueReceived}.
+     */
+    protected void getCurrentConnectionIDs() {
+        Map<String, String> inputs = Collections.emptyMap();
+
+        invokeAction("ConnectionManager", "GetCurrentConnectionIDs", inputs);
+    }
+
+    /**
      * Invoke GetCurrentConnectionInfo on the UPnP Connection Manager.
      * Result is received in {@link onValueReceived}.
      */
@@ -332,6 +342,16 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         Map<String, String> inputs = Collections.singletonMap("ConnectionId", Integer.toString(connectionId));
 
         invokeAction("ConnectionManager", "GetCurrentConnectionInfo", inputs);
+    }
+
+    /**
+     * Invoke GetFeatureList on the UPnP Connection Manager.
+     * Result is received in {@link onValueReceived}.
+     */
+    protected void getFeatureList() {
+        Map<String, String> inputs = Collections.emptyMap();
+
+        invokeAction("ConnectionManager", "GetFeatureList", inputs);
     }
 
     /**
@@ -391,6 +411,14 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
                     logger.debug("Upnp device {} invoke upnp action {} on service {} reply {}", thing.getLabel(),
                             actionId, serviceId, result);
                 }
+
+                if (result.isEmpty()) {
+                    // No result returned, meaning the communication is lost
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
+                            "No result received on InvokeAction from device with UDN " + getUDN());
+                    return;
+                }
+
                 result = preProcessInvokeActionResult(inputs, serviceId, actionId, result);
             }
             for (String variable : result.keySet()) {

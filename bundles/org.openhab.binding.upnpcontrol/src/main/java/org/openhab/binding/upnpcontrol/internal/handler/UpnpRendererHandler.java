@@ -209,6 +209,9 @@ public class UpnpRendererHandler extends UpnpHandler {
     @Override
     protected void initJob() {
         synchronized (jobLock) {
+            // This action should exist on all servers, therefore this is a good action to test connectivity
+            getCurrentConnectionIDs();
+
             if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
                 if (!service.isRegistered(this)) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
