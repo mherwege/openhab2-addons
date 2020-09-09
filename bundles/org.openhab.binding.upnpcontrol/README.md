@@ -59,6 +59,9 @@ The default is to sort ascending on title, `+dc:title`.
 * `browsedown`: When browse or search results in exactly one container entry, iteratively browse down until the result contains multiple container entries or at least one media entry.
 The default is `true`.
 
+* `searchfromroot`: When searching, always start from root instead of the current id.
+The default is `false`.
+
 A `upnprenderer` has the following optional configuration parameter:
 
 * `seekstep`: step in seconds when sending fast forward or rewind command on the player control, default 5s.
@@ -66,8 +69,8 @@ A `upnprenderer` has the following optional configuration parameter:
 The full syntax for manual configuration is:
 
 ```
-Thing upnpcontrol:upnpserver:<serverId> [udn="<udn of media server>"]
-Thing upnpcontrol:upnprenderer:<rendererId> [udn="<udn of media renderer>", filter=<true/false>, sortcriteria="<sort criteria string>"]
+Thing upnpcontrol:upnpserver:<serverId> [udn="<udn of media server>", refresh=<polling interval>, seekstep=<step>]
+Thing upnpcontrol:upnprenderer:<rendererId> [udn="<udn of media renderer>", refresh=<polling interval>, filter=<true/false>, sortcriteria="<sort criteria string>", browsedown=<true/false>, searchfromroot=<true/false>]
 ```
 
 
@@ -94,7 +97,7 @@ The `browsedown` configuration parameter influences the result in such a way tha
 * `search` (String, W): Search for media content on the server.
 Search criteria are defined in UPnP search criteria format.
 Examples: `dc:title contains "song"`, `dc:creator contains "SpringSteen"`, `unp:class = "object.item.audioItem"`, `upnp:album contains "Born in"`.
-The search starts at the value of the `currentid` channel and searches down from there.
+The search by default starts at the value of the `currentid` channel and searches down from there unless the `searchfromroot` thing configuration parameter is set to `true`.
 The result (media and containers) will be available in the `browse` command option list.
 The `currentid` channel will be put to the id of the top container where the search started.
 All media in the search result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
@@ -249,6 +252,9 @@ This allows immediately starting a play command without having to browse down to
 This is especially useful when doing searches and starting to play in scripts, as the play command can immediately follow the search for a unique container, without a need to browse down to a media ID that is hidden in the browse option list.
 For interactive use through a UI, you may opt to switch the `browsedown` configuration parameter to `false` to see all levels in the browsing hierarchy.
 
+The `searchfromroot` configuration parameter always forces searching to start from the directory root.
+This will also always reset the `currentid` channel to the root.
+This option is helpfull if you do not want to limit search to a selected container in the directory.
 
 ## Limitations
 

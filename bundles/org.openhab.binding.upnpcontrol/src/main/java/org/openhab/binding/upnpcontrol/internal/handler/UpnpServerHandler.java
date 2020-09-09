@@ -88,8 +88,9 @@ public class UpnpServerHandler extends UpnpHandler {
     private volatile boolean browseUp = false; // used to avoid automatically going down a level if only one container
                                                // entry found when going up in the hierarchy
 
-    private volatile UpnpEntry currentEntry = new UpnpEntry(DIRECTORY_ROOT, DIRECTORY_ROOT, DIRECTORY_ROOT,
+    private static final UpnpEntry ROOT_ENTRY = new UpnpEntry(DIRECTORY_ROOT, DIRECTORY_ROOT, DIRECTORY_ROOT,
             "object.container");
+    private volatile UpnpEntry currentEntry = ROOT_ENTRY;
     // current entry list in selection
     private List<UpnpEntry> entries = Collections.synchronizedList(new ArrayList<>());
     // store parents in hierarchy separately to be able to move up in directory structure
@@ -108,7 +109,7 @@ public class UpnpServerHandler extends UpnpHandler {
         this.upnpRenderers = upnpRenderers;
 
         // put root as highest level in parent map
-        parentMap.put(currentEntry.getId(), currentEntry);
+        parentMap.put(ROOT_ENTRY.getId(), ROOT_ENTRY);
     }
 
     @Override
@@ -430,11 +431,13 @@ public class UpnpServerHandler extends UpnpHandler {
                 } else {
                     searchContainer = currentEntry.getParentId();
                 }
-                if (searchContainer.isEmpty()) {
-                    // No parent found, so make it the root directory
+                if (config.searchfromroot || !parentMap.containsKey(searchContainer)) {
+                    // Config option search from root or no parent found, so make it the root directory
                     searchContainer = DIRECTORY_ROOT;
                 }
-                logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
+                currentEntry = parentMap.get(searchContainer);
+
+                logger.debug("Navigating to node {} on server {}", searchContainer, thing.getLabel());
                 updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
                 logger.debug("Search container {} for {}", searchContainer, criteria);
                 search(searchContainer, criteria, "*", "0", "0", config.sortcriteria);

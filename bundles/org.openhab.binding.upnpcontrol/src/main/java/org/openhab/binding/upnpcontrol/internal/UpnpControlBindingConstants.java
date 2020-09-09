@@ -43,11 +43,12 @@ public class UpnpControlBindingConstants {
 
     // Thing config parameters
     public static final String UDN_PARAMETER = "udn";
-    public static final String REFRESH_INTERVAL = "refreshInterval";
+    public static final String REFRESH_INTERVAL = "refresh";
     // Server thing only config parameters
     public static final String CONFIG_FILTER = "filter";
     public static final String SORT_CRITERIA = "sortcriteria";
     public static final String BROWSE_DOWN = "browsedown";
+    public static final String SEARCH_FROM_ROOT = "searchfromroot";
     // Renderer thing only config parameters
     public static final String SEEK_STEP = "seekstep";
 

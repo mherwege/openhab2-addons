@@ -110,6 +110,11 @@
 					contains multiple container entries or at least one media entry</description>
 				<default>true</default>
 			</parameter>
+			<parameter name="searchfromroot" type="boolean" required="false">
+				<label>Search From Root</label>
+				<description>Always search from the root directory</description>
+				<default>false</default>
+			</parameter>
 		</config-description>
 	</thing-type>
 
