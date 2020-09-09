@@ -214,7 +214,8 @@ public class UpnpServerHandler extends UpnpHandler {
                 browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Exception, previous server query interrupted or timed out, trying new browse anyway");
+            logger.debug("Exception, previous server query on {} interrupted or timed out, trying new browse anyway",
+                    thing.getLabel());
         }
 
         if (browsed) {
@@ -230,7 +231,7 @@ public class UpnpServerHandler extends UpnpHandler {
 
             invokeAction("ContentDirectory", "Browse", inputs);
         } else {
-            logger.debug("Cannot browse, cancelled querying the server");
+            logger.debug("Cannot browse, cancelled querying server {}", thing.getLabel());
         }
     }
 
@@ -259,7 +260,8 @@ public class UpnpServerHandler extends UpnpHandler {
                 browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Exception, previous server query interrupted or timed out, trying new search anyway");
+            logger.debug("Exception, previous server query on {} interrupted or timed out, trying new search anyway",
+                    thing.getLabel());
         }
 
         if (browsed) {
@@ -275,7 +277,7 @@ public class UpnpServerHandler extends UpnpHandler {
 
             invokeAction("ContentDirectory", "Search", inputs);
         } else {
-            logger.debug("Cannot search, cancelled querying the server");
+            logger.debug("Cannot search, cancelled querying server {}", thing.getLabel());
         }
     }
 
@@ -371,7 +373,7 @@ public class UpnpServerHandler extends UpnpHandler {
         String currentId = "";
         if (command instanceof StringType) {
             currentId = String.valueOf(command);
-            logger.debug("Setting currentId to {}", currentId);
+            logger.debug("Server {}, setting currentId to {}", thing.getLabel(), currentId);
             if (!currentId.isEmpty()) {
                 currentEntry = parentMap.get(currentId);
                 browse(currentId, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
@@ -394,7 +396,8 @@ public class UpnpServerHandler extends UpnpHandler {
                         if (current.isPresent()) {
                             currentEntry = current.get();
                         } else {
-                            logger.info("Trying to browse invalid target {}", browseTarget);
+                            logger.info("Server {}, trying to browse invalid target {}", thing.getLabel(),
+                                    browseTarget);
                             browseTarget = UP; // move up on invalid target
                         }
                     }
@@ -463,7 +466,9 @@ public class UpnpServerHandler extends UpnpHandler {
                     browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
                 }
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                logger.debug("Exception, previous server query interrupted or timed out, restoring playlist anyway");
+                logger.debug(
+                        "Exception, previous server on {} query interrupted or timed out, restoring playlist anyway",
+                        thing.getLabel());
             }
 
             UpnpEntryQueue queue = new UpnpEntryQueue();
@@ -479,7 +484,9 @@ public class UpnpServerHandler extends UpnpHandler {
                 // No entries in restored queue, or we cannot find the parent of the first element in the queue in our
                 // parentMap cache
                 parentEntry = parentMap.get(DIRECTORY_ROOT);
-                logger.debug("Restoring playlist, no known parent for first entry, setting currentId to root");
+                logger.debug(
+                        "Server {}, restoring playlist, no known parent for first entry, setting currentId to root",
+                        thing.getLabel());
             }
             currentEntry = parentEntry;
             updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
@@ -602,7 +609,7 @@ public class UpnpServerHandler extends UpnpHandler {
      * @return
      */
     private List<UpnpEntry> filterEntries(List<UpnpEntry> resultList, boolean includeContainers) {
-        logger.debug("Raw result list {}", resultList);
+        logger.debug("Server {}, raw result list {}", thing.getLabel(), resultList);
         List<UpnpEntry> list = new ArrayList<>();
         UpnpRendererHandler handler = currentRendererHandler;
         if (handler != null) {
@@ -612,7 +619,7 @@ public class UpnpServerHandler extends UpnpHandler {
                             || UpnpProtocolMatcher.testProtocolList(entry.getProtocolList(), sink))
                     .collect(Collectors.toList());
         }
-        logger.debug("Filtered result list {}", list);
+        logger.debug("Server {}, filtered result list {}", thing.getLabel(), list);
         return list;
     }
 
@@ -630,7 +637,7 @@ public class UpnpServerHandler extends UpnpHandler {
 
     @Override
     public void onValueReceived(@Nullable String variable, @Nullable String value, @Nullable String service) {
-        logger.debug("Upnp device {} received variable {} with value {} from service {}", thing.getLabel(), variable,
+        logger.debug("UPnP device {} received variable {} with value {} from service {}", thing.getLabel(), variable,
                 value, service);
         if (variable == null) {
             return;
@@ -663,7 +670,8 @@ public class UpnpServerHandler extends UpnpHandler {
                 String browseTarget = currentEntry.getId();
                 parentMap.put(browseTarget, currentEntry);
                 updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
-                logger.debug("Browsing down one level to the unique container result {}", browseTarget);
+                logger.debug("Server {}, browsing down one level to the unique container result {}", thing.getLabel(),
+                        browseTarget);
                 browse(browseTarget, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
             } else {
                 updateTitleSelection(removeDuplicates(list));

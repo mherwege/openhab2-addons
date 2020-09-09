@@ -116,11 +116,9 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private volatile String favoriteName = ""; // Currently selected favorite
 
-    private boolean repeat;
-    private boolean shuffle;
-
-    private boolean onlyplayone; // Set to true if we only want to play one at a time
-    private boolean oneplayed; // When playing one at a time, set to true when the one is being played
+    private volatile boolean repeat;
+    private volatile boolean shuffle;
+    private volatile boolean onlyplayone; // Set to true if we only want to play one at a time
 
     // Queue as received from server and current and next media entries for playback
     private volatile UpnpEntryQueue currentQueue = new UpnpEntryQueue();
@@ -145,6 +143,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                                               // command is given.
     private volatile boolean playingQueue; // Identifies if we are playing a queue received from a server. If so, a new
                                            // queue received will be played after the currently playing entry.
+    private volatile boolean oneplayed; // When playing one at a time, set to true when the one is being played
 
     // Track position and duration fields
     private volatile int trackDuration = 0;
@@ -312,7 +311,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                 uriSet = settingURI.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.debug("Timeout exception, media URI not yet set in the renderer, trying to play anyway");
+            logger.debug("Timeout exception, media URI not yet set in renderer {}, trying to play anyway",
+                    thing.getLabel());
         }
 
         if (uriSet) {
@@ -322,7 +322,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
             invokeAction("AVTransport", "Play", inputs);
         } else {
-            logger.debug("Cannot play, cancelled setting URI in the renderer");
+            logger.debug("Cannot play, cancelled setting URI in the renderer {}", thing.getLabel());
         }
     }
 
@@ -387,7 +387,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 isSettingURI = new CompletableFuture<Boolean>(); // set this so we don't start playing when not finished
                                                                  // setting URI
             } else {
-                logger.debug("New URI {} is same as previous", nowPlayingUri);
+                logger.debug("New URI {} is same as previous on renderer {}", nowPlayingUri, thing.getLabel());
             }
         } catch (UnsupportedEncodingException ignore) {
             uri = URI;
@@ -694,15 +694,21 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void handleCommandControl(ChannelUID channelUID, Command command) {
-        String transportState;
+        logger.trace("Handle command control: {}", command);
+        logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
+        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
+                playerStopped, playing, registeredQueue, playingQueue, oneplayed);
+
+        String state;
         if (command instanceof RefreshType) {
-            transportState = this.transportState;
+            state = transportState;
             State newState = UnDefType.UNDEF;
-            if ("PLAYING".equals(transportState)) {
+            if ("PLAYING".equals(state)) {
                 newState = PlayPauseType.PLAY;
-            } else if ("STOPPED".equals(transportState)) {
+            } else if ("STOPPED".equals(state)) {
                 newState = PlayPauseType.PAUSE;
-            } else if ("PAUSED_PLAYBACK".equals(transportState)) {
+            } else if ("PAUSED_PLAYBACK".equals(state)) {
                 newState = PlayPauseType.PAUSE;
             }
             updateState(channelUID, newState);
@@ -744,6 +750,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             repeat = (OnOffType.ON.equals(command));
             currentQueue.setRepeat(repeat);
             updateState(channelUID, OnOffType.from(repeat));
+            logger.debug("Repeat set to {} for {}", repeat, thing.getLabel());
         }
     }
 
@@ -757,6 +764,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                 resetToStartQueue();
             }
             updateState(channelUID, OnOffType.from(shuffle));
+            logger.debug("Shuffle set to {} for {}", shuffle, thing.getLabel());
         }
     }
 
@@ -766,7 +774,11 @@ public class UpnpRendererHandler extends UpnpHandler {
         } else {
             onlyplayone = (OnOffType.ON.equals(command));
             oneplayed = (onlyplayone && playing) ? true : false;
+            if (oneplayed) {
+                setNextURI("", "");
+            }
             updateState(channelUID, OnOffType.from(onlyplayone));
+            logger.debug("OnlyPlayOne set to {} for {}", onlyplayone, thing.getLabel());
         }
     }
 
@@ -917,14 +929,14 @@ public class UpnpRendererHandler extends UpnpHandler {
     @Override
     public void onValueReceived(@Nullable String variable, @Nullable String value, @Nullable String service) {
         if (logger.isTraceEnabled()) {
-            logger.trace("Upnp device {} received variable {} with value {} from service {}", thing.getLabel(),
+            logger.trace("UPnP device {} received variable {} with value {} from service {}", thing.getLabel(),
                     variable, value, service);
         } else {
             if (logger.isDebugEnabled() && !("AbsTime".equals(variable) || "RelCount".equals(variable)
                     || "RelTime".equals(variable) || "AbsCount".equals(variable) || "Track".equals(variable)
                     || "TrackDuration".equals(variable))) {
                 // don't log all variables received when updating the track position every second
-                logger.debug("Upnp device {} received variable {} with value {} from service {}", thing.getLabel(),
+                logger.debug("UPnP device {} received variable {} with value {} from service {}", thing.getLabel(),
                         variable, value, service);
             }
         }
@@ -1042,6 +1054,12 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void onValueReceivedTransportState(@Nullable String value) {
+        logger.trace("Renderer {} received transport state: {}", thing.getLabel(), value);
+        logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
+        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
+                playerStopped, playing, registeredQueue, playingQueue, oneplayed);
+
         transportState = (value == null) ? "" : value;
         if ("STOPPED".equals(value)) {
             cancelCheckPaused();
@@ -1110,19 +1128,22 @@ public class UpnpRendererHandler extends UpnpHandler {
         nowPlayingUri = uri;
         updateState(URI, StringType.valueOf(uri));
 
-        logger.trace("Received URI: {}", uri);
-        logger.trace("Current URI: {}, equal to received URI {}", currentUri, uri.equals(currentUri));
-        logger.trace("Next URI: {}", nextUri);
+        logger.trace("Renderer {} received URI: {}", thing.getLabel(), uri);
+        logger.trace("Renderer {} current URI: {}, equal to received URI {}", thing.getLabel(), currentUri,
+                uri.equals(currentUri));
+        logger.trace("Renderer {} next URI: {}", thing.getLabel(), nextUri);
 
         if (!uri.equals(currentUri)) {
             if ((next != null) && uri.equals(nextUri)) {
                 // Renderer advanced to next entry independent of openHAB UPnP control point.
                 // Advance in the queue to keep proper position status.
                 // Make the next entry available to renderers that support it.
-                logger.trace("Renderer moved from '{}' to next entry '{}' in queue", current, next);
+                logger.trace("Renderer {} moved from '{}' to next entry '{}' in queue", thing.getLabel(), current,
+                        next);
                 currentEntry = currentQueue.next();
                 nextEntry = currentQueue.get(currentQueue.nextIndex());
-                logger.trace("Auto move forward, current queue index: {}", currentQueue.index());
+                logger.trace("Renderer {} auto move forward, current queue index: {}", thing.getLabel(),
+                        currentQueue.index());
 
                 updateMetaDataState(next);
 
@@ -1218,7 +1239,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
 
         if (audioSupport) {
-            logger.debug("Device {} supports audio", thing.getLabel());
+            logger.debug("Renderer {} supports audio", thing.getLabel());
             registerAudioSink();
         }
     }
@@ -1244,6 +1265,11 @@ public class UpnpRendererHandler extends UpnpHandler {
      */
     public void registerQueue(UpnpEntryQueue queue) {
         logger.debug("Registering queue on renderer {}", thing.getLabel());
+        logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
+        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
+                playerStopped, playing, registeredQueue, playingQueue, oneplayed);
+
         registeredQueue = true;
         currentQueue = queue;
         currentQueue.setRepeat(repeat);
@@ -1253,7 +1279,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             UpnpEntry next = nextEntry;
             if (next != null) {
                 // make the next entry available to renderers that support it
-                logger.trace("Still playing, set new queue as next entry");
+                logger.trace("Renderer {} still playing, set new queue as next entry", thing.getLabel());
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
             }
         } else {
@@ -1268,8 +1294,8 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (currentQueue.hasNext()) {
             currentEntry = currentQueue.next();
             nextEntry = currentQueue.get(currentQueue.nextIndex());
-            logger.trace("Serve next, current queue index: {}", currentQueue.index());
             logger.debug("Serve next media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
+            logger.trace("Serve next, current queue index: {}", currentQueue.index());
 
             serve();
         } else {
@@ -1285,8 +1311,8 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (currentQueue.hasPrevious()) {
             currentEntry = currentQueue.previous();
             nextEntry = currentQueue.get(currentQueue.nextIndex());
-            logger.trace("Serve previous, current queue index: {}", currentQueue.index());
             logger.debug("Serve previous media '{}' from queue on renderer {}", currentEntry, thing.getLabel());
+            logger.trace("Serve previous, current queue index: {}", currentQueue.index());
 
             serve();
         } else {
@@ -1296,7 +1322,12 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void resetToStartQueue() {
-        playing = false;
+        logger.trace("Reset to start queue on renderer {}", thing.getLabel());
+        logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
+        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
+                playerStopped, playing, registeredQueue, playingQueue, oneplayed);
+
         playingQueue = false;
         stop();
 
@@ -1327,12 +1358,18 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param media
      */
     private void serve() {
+        logger.trace("Serve media on renderer {}", thing.getLabel());
+        logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
+        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
+                playerStopped, playing, registeredQueue, playingQueue, oneplayed);
+
         UpnpEntry entry = currentEntry;
         if (entry != null) {
             clearMetaDataState();
             String res = entry.getRes();
             if (res.isEmpty()) {
-                logger.debug("Cannot serve media '{}', no URI", currentEntry);
+                logger.debug("Renderer {} cannot serve media '{}', no URI", thing.getLabel(), currentEntry);
                 playingQueue = false;
                 return;
             }
@@ -1429,22 +1466,32 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (playingQueue) {
             entry = currentEntry;
         }
-        String mediaRes = media.getRes().trim();
-        String entryRes = (entry != null) ? entry.getRes().trim() : "";
 
-        try {
-            String mediaUrl = URLDecoder.decode(mediaRes, StandardCharsets.UTF_8.name());
-            String entryUrl = URLDecoder.decode(entryRes, StandardCharsets.UTF_8.name());
-            isCurrent = mediaUrl.equals(entryUrl);
-        } catch (UnsupportedEncodingException e) {
-            logger.debug("Unsupported encoding for new {} or current {} res URL, trying string compare", mediaRes,
-                    entryRes);
-            isCurrent = mediaRes.equals(entryRes);
+        logger.trace("Renderer {}, received media ID: {}", thing.getLabel(), media.getId());
+
+        if ((entry != null) && entry.getId().equals(media.getId())) {
+            logger.trace("Current ID: {}", entry.getId());
+
+            isCurrent = true;
+        } else {
+            // Sometimes we receive the media URL without the ID, then compare on URL
+            String mediaRes = media.getRes().trim();
+            String entryRes = (entry != null) ? entry.getRes().trim() : "";
+
+            try {
+                String mediaUrl = URLDecoder.decode(mediaRes, StandardCharsets.UTF_8.name());
+                String entryUrl = URLDecoder.decode(entryRes, StandardCharsets.UTF_8.name());
+                isCurrent = mediaUrl.equals(entryUrl);
+            } catch (UnsupportedEncodingException e) {
+                logger.debug("Renderer {} unsupported encoding for new {} or current {} res URL, trying string compare",
+                        thing.getLabel(), mediaRes, entryRes);
+                isCurrent = mediaRes.equals(entryRes);
+            }
+
+            logger.trace("Current queue res: {}", entryRes);
+            logger.trace("Updated media res: {}", mediaRes);
         }
 
-        logger.trace("Media ID: {}", media.getId());
-        logger.trace("Current queue res: {}", entryRes);
-        logger.trace("Updated media res: {}", mediaRes);
         logger.trace("Received meta data is for current entry: {}", isCurrent);
 
         if (!(isCurrent && media.getTitle().isEmpty())) {

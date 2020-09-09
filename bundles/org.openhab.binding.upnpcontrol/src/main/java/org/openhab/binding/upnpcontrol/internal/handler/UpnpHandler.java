@@ -242,7 +242,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
                 .withCategory(category).isAdvanced(advanced).build();
         localChannelTypeProvider.addChannelType(channelType);
         Channel channel = ChannelBuilder.create(channelUID, itemType).withType(channelTypeUID).build();
-        logger.debug("Created channel {}", channelId);
+        logger.debug("UPnP device {}, created channel {}", thing.getLabel(), channelId);
 
         updatedChannels.add(channel);
         updatedChannelUIDs.add(channelUID);
@@ -366,7 +366,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
 
     @Override
     public void onServiceSubscribed(@Nullable String service, boolean succeeded) {
-        logger.debug("Upnp device {} received subscription reply {} from service {}", thing.getLabel(), succeeded,
+        logger.debug("UPnP device {} received subscription reply {} from service {}", thing.getLabel(), succeeded,
                 service);
         if (succeeded) {
             updateStatus(ThingStatus.ONLINE);
@@ -402,13 +402,13 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
             synchronized (invokeActionLock) {
                 if (logger.isDebugEnabled() && !"GetPositionInfo".equals(actionId)) {
                     // don't log position info refresh every second
-                    logger.debug("Upnp device {} invoke upnp action {} on service {} with inputs {}", thing.getLabel(),
+                    logger.debug("UPnP device {} invoke upnp action {} on service {} with inputs {}", thing.getLabel(),
                             actionId, serviceId, inputs);
                 }
                 result = service.invokeAction(this, serviceId, actionId, inputs);
                 if (logger.isDebugEnabled() && !"GetPositionInfo".equals(actionId)) {
                     // don't log position info refresh every second
-                    logger.debug("Upnp device {} invoke upnp action {} on service {} reply {}", thing.getLabel(),
+                    logger.debug("UPnP device {} invoke upnp action {} on service {} reply {}", thing.getLabel(),
                             actionId, serviceId, result);
                 }
 
@@ -562,7 +562,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
      */
     protected void addSubscription(String serviceId, int duration) {
         if (service.isRegistered(this)) {
-            logger.debug("Upnp device {} add upnp subscription on {}", thing.getLabel(), serviceId);
+            logger.debug("UPnP device {} add upnp subscription on {}", thing.getLabel(), serviceId);
             service.addSubscription(this, serviceId, duration);
         }
     }
