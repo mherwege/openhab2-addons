@@ -14,7 +14,6 @@ package org.openhab.binding.upnpcontrol.internal.discovery;
 
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
-import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -61,27 +60,11 @@ public class UpnpControlDiscoveryParticipant implements UpnpDiscoveryParticipant
             properties.put("udn", device.getIdentity().getUdn().getIdentifierString());
             properties.put("deviceDescrURL", descriptorURL.toString());
             URL baseURL = device.getDetails().getBaseURL();
-            String baseURLString;
             if (baseURL != null) {
-                baseURLString = baseURL.toString();
-            } else {
-                String protocol = descriptorURL.getProtocol();
-                String host = descriptorURL.getHost();
-                int port = descriptorURL.getPort();
-                if (port == -1) {
-                    baseURLString = String.format("%s://%s", protocol, host);
-                } else {
-                    baseURLString = String.format("%s://%s:%d", protocol, host, port);
-                }
+                properties.put("baseURL", device.getDetails().getBaseURL().toString());
             }
             for (RemoteService service : device.getServices()) {
-                String serviceType = service.getServiceType().getType();
-                URI serviceDescriptorURI = service.getDescriptorURI();
-                String descrURIString = serviceDescriptorURI.toString();
-                if (!descrURIString.startsWith("/")) {
-                    descrURIString = "/" + descrURIString;
-                }
-                properties.put(serviceType + "DescrURL", baseURLString + descrURIString);
+                properties.put(service.getServiceType().getType() + "DescrURI", service.getDescriptorURI().toString());
             }
             result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withProperties(properties)
                     .withRepresentationProperty("udn").build();

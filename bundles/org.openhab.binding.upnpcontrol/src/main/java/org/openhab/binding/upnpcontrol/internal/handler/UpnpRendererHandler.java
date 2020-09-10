@@ -15,8 +15,6 @@ package org.openhab.binding.upnpcontrol.internal.handler;
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
 import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -62,6 +60,7 @@ import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.net.http.HttpUtil;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
+import org.jupnp.model.meta.RemoteDevice;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSink;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
@@ -91,9 +90,6 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private final Logger logger = LoggerFactory.getLogger(UpnpRendererHandler.class);
 
-    // UPnP protocol pattern
-    private static final Pattern PROTOCOL_PATTERN = Pattern.compile("(?:.*):(?:.*):(.*):(?:.*)");
-
     private volatile boolean audioSupport;
     protected volatile Set<AudioFormat> supportedAudioFormats = new HashSet<>();
     private volatile boolean audioSinkRegistered;
@@ -103,7 +99,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile Set<UpnpServerHandler> serverHandlers = ConcurrentHashMap.newKeySet();
 
     protected @NonNullByDefault({}) UpnpControlRendererConfiguration config;
-    private @Nullable UpnpRenderingControlConfiguration renderingControlConfiguration;
+    private UpnpRenderingControlConfiguration renderingControlConfiguration = new UpnpRenderingControlConfiguration();
 
     private volatile List<CommandOption> favoriteCommandOptionList = Collections.synchronizedList(new ArrayList<>());
     private volatile List<CommandOption> playlistCommandOptionList = Collections.synchronizedList(new ArrayList<>());
@@ -208,29 +204,16 @@ public class UpnpRendererHandler extends UpnpHandler {
     @Override
     protected void initJob() {
         synchronized (jobLock) {
-            // This action should exist on all servers, therefore this is a good action to test connectivity
-            getCurrentConnectionIDs();
-
             if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
-                if (!service.isRegistered(this)) {
+                if (!upnpIOService.isRegistered(this)) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                             "UPnP device with UDN " + getUDN() + " not yet registered");
                     return;
                 }
 
-                String descriptor = thing.getProperties().get("RenderingControlDescrURL");
-                try {
-                    UpnpRenderingControlConfiguration config = UpnpXMLParser
-                            .parseRenderingControlDescription(new URL(descriptor));
-                    Set<String> audioChannels = config.audioChannels;
-                    renderingControlConfiguration = config;
-                    for (String audioChannel : audioChannels) {
-                        createAudioChannels(audioChannel);
-                    }
-                } catch (MalformedURLException e) {
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                            "Mal formed Rendering Control descriptor URL: " + descriptor);
-                    return;
+                RemoteDevice device = getDevice();
+                if (device != null) {
+                    updateDeviceConfig(device);
                 }
 
                 updateFavoritesList();
@@ -241,8 +224,6 @@ public class UpnpRendererHandler extends UpnpHandler {
                 if (!upnpSubscribed) {
                     addSubscriptions();
                 }
-
-                updateChannels();
 
                 getCurrentConnectionInfo();
                 if (!checkForConnectionIds()) {
@@ -258,32 +239,43 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
+    @Override
+    public void updateDeviceConfig(RemoteDevice device) {
+        super.updateDeviceConfig(device);
+
+        UpnpRenderingControlConfiguration config = new UpnpRenderingControlConfiguration(device);
+        renderingControlConfiguration = config;
+        for (String audioChannel : config.audioChannels) {
+            createAudioChannels(audioChannel);
+        }
+
+        updateChannels();
+    }
+
     private void createAudioChannels(String audioChannel) {
         UpnpRenderingControlConfiguration config = renderingControlConfiguration;
-        if (config != null) {
-            if (config.volume && !UPNP_MASTER.equals(audioChannel)) {
-                String name = audioChannel + "volume";
-                if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
-                    createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
-                } else {
-                    createChannel(name, name, "Dimmer", "Vendor specific UPnP volume channel", "SoundVolume", true);
-                }
+        if (config.volume && !UPNP_MASTER.equals(audioChannel)) {
+            String name = audioChannel + "volume";
+            if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
+                createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
+            } else {
+                createChannel(name, name, "Dimmer", "Vendor specific UPnP volume channel", "SoundVolume", true);
             }
-            if (config.mute && !UPNP_MASTER.equals(audioChannel)) {
-                String name = audioChannel + "mute";
-                if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
-                    createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
-                } else {
-                    createChannel(name, name, "Switch", "Vendor specific  UPnP mute channel", "SoundVolume", true);
-                }
+        }
+        if (config.mute && !UPNP_MASTER.equals(audioChannel)) {
+            String name = audioChannel + "mute";
+            if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
+                createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
+            } else {
+                createChannel(name, name, "Switch", "Vendor specific  UPnP mute channel", "SoundVolume", true);
             }
-            if (config.loudness) {
-                String name = (UPNP_MASTER.equals(audioChannel) ? "" : audioChannel) + "loudness";
-                if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
-                    createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
-                } else {
-                    createChannel(name, name, "Switch", "Vendor specific  UPnP loudness channel", "SoundVolume", true);
-                }
+        }
+        if (config.loudness) {
+            String name = (UPNP_MASTER.equals(audioChannel) ? "" : audioChannel) + "loudness";
+            if (UpnpChannelName.channelIdToUpnpChannelName(name) != null) {
+                createChannel(UpnpChannelName.channelIdToUpnpChannelName(name));
+            } else {
+                createChannel(name, name, "Switch", "Vendor specific  UPnP loudness channel", "SoundVolume", true);
             }
         }
     }
@@ -479,7 +471,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     protected void setVolume(String channel, PercentType volume) {
         UpnpRenderingControlConfiguration config = renderingControlConfiguration;
 
-        int newVolume = volume.intValue();
+        long newVolume = volume.intValue();
         if (config != null) {
             newVolume = newVolume * config.maxvolume / 100;
         }
@@ -989,13 +981,11 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (!((value == null) || (value.isEmpty()))) {
             UpnpRenderingControlConfiguration config = renderingControlConfiguration;
 
-            int volume = Integer.valueOf(value);
-            if (config != null) {
-                volume = volume * 100 / config.maxvolume;
-            }
+            long volume = Integer.valueOf(value);
+            volume = volume * 100 / config.maxvolume;
 
             String upnpChannel = variable.replace("Volume", "volume").replace("Master", "");
-            updateState(upnpChannel, new PercentType(volume));
+            updateState(upnpChannel, new PercentType((int) volume));
         }
     }
 
@@ -1557,7 +1547,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (audioSinkRegistered) {
             logger.debug("Audio Sink already registered for renderer {}", thing.getLabel());
             return;
-        } else if (!service.isRegistered(this)) {
+        } else if (!upnpIOService.isRegistered(this)) {
             logger.debug("Audio Sink registration for renderer {} failed, no service", thing.getLabel());
             return;
         }

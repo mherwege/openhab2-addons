@@ -161,11 +161,8 @@ public class UpnpServerHandler extends UpnpHandler {
     @Override
     protected void initJob() {
         synchronized (jobLock) {
-            // This action should exist on all servers, therefore this is a good action to test connectivity
-            getCurrentConnectionIDs();
-
             if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
-                if (!service.isRegistered(this)) {
+                if (!upnpIOService.isRegistered(this)) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                             "UPnP device with UDN " + getUDN() + " not yet registered");
                     return;

@@ -32,7 +32,13 @@ import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
+import org.jupnp.UpnpService;
+import org.jupnp.model.meta.LocalDevice;
+import org.jupnp.model.meta.RemoteDevice;
+import org.jupnp.registry.Registry;
+import org.jupnp.registry.RegistryListener;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
+import org.openhab.binding.upnpcontrol.internal.handler.UpnpHandler;
 import org.openhab.binding.upnpcontrol.internal.handler.UpnpRendererHandler;
 import org.openhab.binding.upnpcontrol.internal.handler.UpnpServerHandler;
 import org.osgi.framework.ServiceRegistration;
@@ -51,7 +57,7 @@ import org.slf4j.LoggerFactory;
  */
 @Component(service = ThingHandlerFactory.class, configurationPid = "binding.upnpcontrol")
 @NonNullByDefault
-public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implements UpnpAudioSinkReg {
+public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implements UpnpAudioSinkReg, RegistryListener {
     final UpnpControlBindingConfiguration configuration = new UpnpControlBindingConfiguration();
 
     private final Logger logger = LoggerFactory.getLogger(UpnpControlHandlerFactory.class);
@@ -59,6 +65,8 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
     private ConcurrentMap<String, ServiceRegistration<AudioSink>> audioSinkRegistrations = new ConcurrentHashMap<>();
     private ConcurrentMap<String, UpnpRendererHandler> upnpRenderers = new ConcurrentHashMap<>();
     private ConcurrentMap<String, UpnpServerHandler> upnpServers = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, UpnpHandler> handlers = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, RemoteDevice> devices = new ConcurrentHashMap<>();
 
     private final UpnpIOService upnpIOService;
     private final AudioHTTPServer audioHTTPServer;
@@ -69,7 +77,7 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
     private String callbackUrl = "";
 
     @Activate
-    public UpnpControlHandlerFactory(final @Reference UpnpIOService upnpIOService,
+    public UpnpControlHandlerFactory(final @Reference UpnpIOService upnpIOService, @Reference UpnpService upnpService,
             final @Reference AudioHTTPServer audioHTTPServer,
             final @Reference NetworkAddressService networkAddressService,
             final @Reference UpnpDynamicStateDescriptionProvider dynamicStateDescriptionProvider,
@@ -80,6 +88,8 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
         this.networkAddressService = networkAddressService;
         this.upnpStateDescriptionProvider = dynamicStateDescriptionProvider;
         this.upnpCommandDescriptionProvider = dynamicCommandDescriptionProvider;
+
+        upnpService.getRegistry().addListener(this);
 
         modified(config);
     }
@@ -129,6 +139,13 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
         String key = thing.getUID().toString();
         upnpServers.put(key, handler);
         logger.debug("Media server handler created for {} with UID {}", thing.getLabel(), thing.getUID());
+
+        String udn = handler.getUDN();
+        if (udn != null) {
+            handlers.put(udn, handler);
+            remoteDeviceUpdated(null, devices.get(udn));
+        }
+
         return handler;
     }
 
@@ -141,13 +158,19 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
         upnpServers.forEach((thingId, value) -> value.addRendererOption(key));
         logger.debug("Media renderer handler created for {} with UID {}", thing.getLabel(), thing.getUID());
 
+        String udn = handler.getUDN();
+        if (udn != null) {
+            handlers.put(udn, handler);
+            remoteDeviceUpdated(null, devices.get(udn));
+        }
+
         return handler;
     }
 
     private void removeServer(String key) {
         logger.debug("Removing media server handler for {} with UID {}", upnpServers.get(key).getThing().getLabel(),
                 upnpServers.get(key).getThing().getUID());
-        upnpServers.remove(key);
+        handlers.remove(upnpServers.remove(key).getUDN());
     }
 
     private void removeRenderer(String key) {
@@ -160,7 +183,7 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
             audioSinkRegistrations.remove(key);
         }
         upnpServers.forEach((thingId, value) -> value.removeRendererOption(key));
-        upnpRenderers.remove(key);
+        handlers.remove(upnpRenderers.remove(key).getUDN());
     }
 
     @Override
@@ -192,5 +215,67 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
             return "";
         }
         return "http://" + ipAddress + ":" + port;
+    }
+
+    @Override
+    public void remoteDeviceDiscoveryStarted(@Nullable Registry registry, @Nullable RemoteDevice device) {
+    }
+
+    @Override
+    public void remoteDeviceDiscoveryFailed(@Nullable Registry registry, @Nullable RemoteDevice device,
+            @Nullable Exception ex) {
+    }
+
+    @Override
+    public void remoteDeviceAdded(@Nullable Registry registry, @Nullable RemoteDevice device) {
+        if (device == null) {
+            return;
+        }
+
+        String udn = device.getIdentity().getUdn().getIdentifierString();
+        if ("MediaServer".equals(device.getType().getType()) || "MediaRenderer".equals(device.getType().getType())) {
+            devices.put(udn, device);
+        }
+
+        if (handlers.containsKey(udn)) {
+            remoteDeviceUpdated(registry, device);
+        }
+    }
+
+    @Override
+    public void remoteDeviceUpdated(@Nullable Registry registry, @Nullable RemoteDevice device) {
+        if (device == null) {
+            return;
+        }
+
+        String udn = device.getIdentity().getUdn().getIdentifierString();
+        if (handlers.containsKey(udn)) {
+            handlers.get(udn).updateDeviceConfig(device);
+        }
+    }
+
+    @Override
+    public void remoteDeviceRemoved(@Nullable Registry registry, @Nullable RemoteDevice device) {
+        if (device == null) {
+            return;
+        }
+        devices.remove(device.getIdentity().getUdn().getIdentifierString());
+    }
+
+    @Override
+    public void localDeviceAdded(@Nullable Registry registry, @Nullable LocalDevice device) {
+    }
+
+    @Override
+    public void localDeviceRemoved(@Nullable Registry registry, @Nullable LocalDevice device) {
+    }
+
+    @Override
+    public void beforeShutdown(@Nullable Registry registry) {
+        devices = new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public void afterShutdown() {
     }
 }

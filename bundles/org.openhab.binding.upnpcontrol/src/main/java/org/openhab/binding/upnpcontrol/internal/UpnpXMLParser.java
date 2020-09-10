@@ -14,7 +14,6 @@ package org.openhab.binding.upnpcontrol.internal;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.net.URL;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,7 +28,6 @@ import javax.xml.parsers.SAXParserFactory;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.upnpcontrol.internal.services.UpnpRenderingControlConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.Attributes;
@@ -398,124 +396,6 @@ public class UpnpXMLParser {
 
         public List<UpnpEntry> getEntries() {
             return entries;
-        }
-    }
-
-    public static UpnpRenderingControlConfiguration parseRenderingControlDescription(URL descriptorURL) {
-        RenderingControlConfigurationHandler handler = new RenderingControlConfigurationHandler();
-        try {
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            SAXParser saxParser = factory.newSAXParser();
-            URL url = new URL(descriptorURL.toString());
-            saxParser.parse(new InputSource(url.openStream()), handler);
-        } catch (IOException | SAXException | ParserConfigurationException e) {
-            LOGGER.error("Could not parse rendering control configuration from string '{}'", descriptorURL.toString());
-        }
-        return handler.getRenderingControlConfiguration();
-    }
-
-    private static class RenderingControlConfigurationHandler extends DefaultHandler {
-
-        UpnpRenderingControlConfiguration config = new UpnpRenderingControlConfiguration();
-
-        private boolean stateVariableTag;
-        private boolean nameTag;
-        private boolean channelTag;
-        private boolean volumeTag;
-        private boolean allowedValueTag;
-        private boolean maximumTag;
-
-        RenderingControlConfigurationHandler() {
-            // shouldn't be used outside of this package.
-        }
-
-        @Override
-        public void startElement(@Nullable String uri, @Nullable String localName, @Nullable String qName,
-                @Nullable Attributes attributes) throws SAXException {
-            if (qName == null) {
-                return;
-            }
-
-            switch (qName) {
-                case "stateVariable":
-                    stateVariableTag = true;
-                    break;
-                case "name":
-                    if (stateVariableTag) {
-                        nameTag = true;
-                    }
-                    break;
-                case "allowedValue":
-                    if (stateVariableTag) {
-                        allowedValueTag = true;
-                    }
-                    break;
-                case "maximum":
-                    if (stateVariableTag) {
-                        maximumTag = true;
-                    }
-            }
-        }
-
-        @Override
-        public void characters(char @Nullable [] ch, int start, int length) throws SAXException {
-            if (nameTag) {
-                String name = new String(ch, start, length);
-                switch (name) {
-                    case "A_ARG_TYPE_Channel":
-                        channelTag = true;
-                        break;
-                    case "Volume":
-                        config.volume = true;
-                        volumeTag = true;
-                        break;
-                    case "Mute":
-                        config.mute = true;
-                        break;
-                    case "Loudness":
-                        config.loudness = true;
-                        break;
-                }
-            }
-            if (channelTag && allowedValueTag) {
-                String channel = new String(ch, start, length);
-                config.audioChannels.add(channel);
-            }
-            if (volumeTag && maximumTag) {
-                try {
-                    config.maxvolume = Integer.valueOf(new String(ch, start, length));
-                } catch (NumberFormatException ignore) {
-                    // keep default value
-                }
-            }
-        }
-
-        @Override
-        public void endElement(@Nullable String uri, @Nullable String localName, @Nullable String qName)
-                throws SAXException {
-            if (qName == null) {
-                return;
-            }
-
-            switch (qName) {
-                case "stateVariable":
-                    stateVariableTag = false;
-                    nameTag = false;
-                    channelTag = false;
-                    volumeTag = false;
-                    maximumTag = false;
-                    break;
-                case "allowedValue":
-                    allowedValueTag = false;
-                    break;
-                case "maximum":
-                    maximumTag = false;
-                    break;
-            }
-        }
-
-        public UpnpRenderingControlConfiguration getRenderingControlConfiguration() {
-            return config;
         }
     }
 
