@@ -134,7 +134,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                                                           // renderers that cannot pause playback
     private volatile @Nullable CompletableFuture<Boolean> isSettingURI; // Set to wait for setting URI before starting
                                                                         // to play
-    private volatile boolean registeredQueue; // Set when registering a new queue. This allows to decide if we need just
+    private volatile boolean registeredQueue; // Set when registering a new queue. This allows to decide if we just
                                               // need to play URI, or serve the first entry in a queue when a play
                                               // command is given.
     private volatile boolean playingQueue; // Identifies if we are playing a queue received from a server. If so, a new
@@ -688,7 +688,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void handleCommandControl(ChannelUID channelUID, Command command) {
         logger.trace("Handle command control: {}", command);
         logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
-        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: {}, nowPlayingUri {}", transportState, nowPlayingUri);
         logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
                 playerStopped, playing, registeredQueue, playingQueue, oneplayed);
 
@@ -1046,7 +1046,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void onValueReceivedTransportState(@Nullable String value) {
         logger.trace("Renderer {} received transport state: {}", thing.getLabel(), value);
         logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
-        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: {}, nowPlayingUri {}", transportState, nowPlayingUri);
         logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
                 playerStopped, playing, registeredQueue, playingQueue, oneplayed);
 
@@ -1256,7 +1256,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     public void registerQueue(UpnpEntryQueue queue) {
         logger.debug("Registering queue on renderer {}", thing.getLabel());
         logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
-        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: {}, nowPlayingUri {}", transportState, nowPlayingUri);
         logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
                 playerStopped, playing, registeredQueue, playingQueue, oneplayed);
 
@@ -1314,7 +1314,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void resetToStartQueue() {
         logger.trace("Reset to start queue on renderer {}", thing.getLabel());
         logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
-        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: {}, nowPlayingUri {}", transportState, nowPlayingUri);
         logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
                 playerStopped, playing, registeredQueue, playingQueue, oneplayed);
 
@@ -1350,7 +1350,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void serve() {
         logger.trace("Serve media on renderer {}", thing.getLabel());
         logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
-        logger.trace("Renderer state: nowPlayingUri {}, transportState {}", nowPlayingUri, transportState);
+        logger.trace("Renderer state: {}, nowPlayingUri {}", transportState, nowPlayingUri);
         logger.trace("Renderer state: playerstopped {}, playing {}, registeredQueue {}, playingQueue {}, oneplayed {}",
                 playerStopped, playing, registeredQueue, playingQueue, oneplayed);
 
