@@ -211,19 +211,11 @@ public class UpnpRendererHandler extends UpnpHandler {
                     return;
                 }
 
-                RemoteDevice device = getDevice();
-                if (device != null) {
-                    updateDeviceConfig(device);
-                }
-
-                updateFavoritesList();
-                playlistsListChanged();
-
-                getProtocolInfo();
-
                 if (!upnpSubscribed) {
                     addSubscriptions();
                 }
+
+                getProtocolInfo();
 
                 getCurrentConnectionInfo();
                 if (!checkForConnectionIds()) {
@@ -233,6 +225,14 @@ public class UpnpRendererHandler extends UpnpHandler {
                 }
 
                 getTransportState();
+
+                updateFavoritesList();
+                playlistsListChanged();
+
+                RemoteDevice device = getDevice();
+                if (device != null) {
+                    updateDeviceConfig(device);
+                }
 
                 updateStatus(ThingStatus.ONLINE);
             }
@@ -1319,6 +1319,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                 playerStopped, playing, registeredQueue, playingQueue, oneplayed);
 
         playingQueue = false;
+        registeredQueue = true;
+
         stop();
 
         currentQueue.resetIndex(); // reset to beginning of queue

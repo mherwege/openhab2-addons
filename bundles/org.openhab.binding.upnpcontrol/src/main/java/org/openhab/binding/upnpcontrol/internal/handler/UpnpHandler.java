@@ -144,6 +144,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     @Override
     public void initialize() {
         upnpIOService.registerParticipant(this);
+        // This action should exist on all media devices and return a result, so a good candidate for testing.
         upnpIOService.addStatusListener(this, "ConnectionManager", "GetCurrentConnectionIDs", config.refresh);
 
         UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
@@ -441,11 +442,10 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
                             actionId, serviceId, result);
                 }
 
-                if (result.isEmpty()) {
-                    // No result returned, meaning the communication is lost
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                            "No result received on InvokeAction from device with UDN " + getUDN());
-                    return;
+                if (!result.isEmpty()) {
+                    // We can be sure a non-empty result means the device is online.
+                    // An empty result could be expected for certain actions, but could also be hiding an exception.
+                    updateStatus(ThingStatus.ONLINE);
                 }
 
                 result = preProcessInvokeActionResult(inputs, serviceId, actionId, result);

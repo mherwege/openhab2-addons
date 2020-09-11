@@ -44,6 +44,7 @@ import org.openhab.binding.upnpcontrol.internal.handler.UpnpServerHandler;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
@@ -69,6 +70,7 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
     private ConcurrentMap<String, RemoteDevice> devices = new ConcurrentHashMap<>();
 
     private final UpnpIOService upnpIOService;
+    private final UpnpService upnpService;
     private final AudioHTTPServer audioHTTPServer;
     private final NetworkAddressService networkAddressService;
     private final UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider;
@@ -84,6 +86,7 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
             final @Reference UpnpDynamicCommandDescriptionProvider dynamicCommandDescriptionProvider,
             Map<String, Object> config) {
         this.upnpIOService = upnpIOService;
+        this.upnpService = upnpService;
         this.audioHTTPServer = audioHTTPServer;
         this.networkAddressService = networkAddressService;
         this.upnpStateDescriptionProvider = dynamicStateDescriptionProvider;
@@ -101,6 +104,11 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
         // share the same instance.
         configuration.update(new Configuration(config).as(UpnpControlBindingConfiguration.class));
         logger.debug("Updated binding configuration to {}", configuration);
+    }
+
+    @Deactivate
+    protected void deActivate() {
+        upnpService.getRegistry().removeListener(this);
     }
 
     @Override

@@ -46,6 +46,7 @@ import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.StateOption;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
+import org.jupnp.model.meta.RemoteDevice;
 import org.openhab.binding.upnpcontrol.internal.UpnpControlHandlerFactory;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
@@ -168,6 +169,10 @@ public class UpnpServerHandler extends UpnpHandler {
                     return;
                 }
 
+                if (!upnpSubscribed) {
+                    addSubscriptions();
+                }
+
                 rendererStateOptionList = Collections.synchronizedList(new ArrayList<>());
                 synchronized (rendererStateOptionList) {
                     upnpRenderers.forEach((key, value) -> {
@@ -177,15 +182,17 @@ public class UpnpServerHandler extends UpnpHandler {
                 }
                 updateStateDescription(rendererChannelUID, rendererStateOptionList);
 
-                playlistsListChanged();
-
                 getProtocolInfo();
 
-                if (!upnpSubscribed) {
-                    addSubscriptions();
+                browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
+
+                playlistsListChanged();
+
+                RemoteDevice device = getDevice();
+                if (device != null) {
+                    updateDeviceConfig(device);
                 }
 
-                browse(currentEntry.getId(), "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
                 updateStatus(ThingStatus.ONLINE);
             }
         }
