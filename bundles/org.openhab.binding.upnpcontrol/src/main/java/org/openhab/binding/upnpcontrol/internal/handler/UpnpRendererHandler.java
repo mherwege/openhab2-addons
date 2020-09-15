@@ -321,7 +321,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     /**
      * Invoke Pause on UPnP AV Transport.
      */
-    public void pause() {
+    protected void pause() {
         Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
 
         invokeAction("AVTransport", "Pause", inputs);
@@ -399,7 +399,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param nextURI
      * @param nextURIMetaData
      */
-    public void setNextURI(String nextURI, String nextURIMetaData) {
+    protected void setNextURI(String nextURI, String nextURIMetaData) {
         Map<String, String> inputs = new HashMap<>();
         inputs.put("InstanceID", Integer.toString(avTransportId));
         inputs.put("NextURI", nextURI);
@@ -432,7 +432,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      * Invoke GetMediaInfo on UPnP AV Transport.
      * Result is received in {@link onValueReceived}.
      */
-    public void getMediaInfo() {
+    protected void getMediaInfo() {
         Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
 
         invokeAction("AVTransport", "smarthome:audio stream http://icecast.vrtcdn.be/stubru_tijdloze-high.mp3", inputs);
@@ -471,10 +471,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     protected void setVolume(String channel, PercentType volume) {
         UpnpRenderingControlConfiguration config = renderingControlConfiguration;
 
-        long newVolume = volume.intValue();
-        if (config != null) {
-            newVolume = newVolume * config.maxvolume / 100;
-        }
+        long newVolume = volume.intValue() * config.maxvolume / 100;
         Map<String, String> inputs = new HashMap<>();
         inputs.put("InstanceID", Integer.toString(rcsId));
         inputs.put("Channel", channel);
@@ -555,7 +552,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      *
      * @param handler
      */
-    void setServerHandler(UpnpServerHandler handler) {
+    protected void setServerHandler(UpnpServerHandler handler) {
         logger.debug("Set server handler {} on renderer {}", handler.getThing().getLabel(), thing.getLabel());
         serverHandlers.add(handler);
     }
@@ -563,7 +560,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     /**
      * Should be called from server handler when server stops serving this renderer
      */
-    void unsetServerHandler() {
+    protected void unsetServerHandler() {
         logger.debug("Unset server handler on renderer {}", thing.getLabel());
         for (UpnpServerHandler handler : serverHandlers) {
             Thing serverThing = handler.getThing();
@@ -1253,7 +1250,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      *
      * @param queue
      */
-    public void registerQueue(UpnpEntryQueue queue) {
+    protected void registerQueue(UpnpEntryQueue queue) {
         logger.debug("Registering queue on renderer {}", thing.getLabel());
         logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
         logger.trace("Renderer state: {}, nowPlayingUri {}", transportState, nowPlayingUri);
@@ -1410,7 +1407,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
-    protected void setExpectedTrackend() {
+    private void setExpectedTrackend() {
         expectedTrackend = Instant.now().toEpochMilli() + (trackDuration - trackPosition) * 1000
                 - UPNP_RESPONSE_TIMEOUT_MILLIS;
     }

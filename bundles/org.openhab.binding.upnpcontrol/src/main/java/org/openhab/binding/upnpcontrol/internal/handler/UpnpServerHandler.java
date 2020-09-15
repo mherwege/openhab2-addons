@@ -209,8 +209,8 @@ public class UpnpServerHandler extends UpnpHandler {
      * @param requestedCount number of objects to return, 0 for all
      * @param sortCriteria sort criteria, example: +dc:title
      */
-    public void browse(String objectID, String browseFlag, String filter, String startingIndex, String requestedCount,
-            String sortCriteria) {
+    protected void browse(String objectID, String browseFlag, String filter, String startingIndex,
+            String requestedCount, String sortCriteria) {
         CompletableFuture<Boolean> browsing = isBrowsing;
         boolean browsed = true;
         try {
@@ -255,7 +255,7 @@ public class UpnpServerHandler extends UpnpHandler {
      * @param requestedCount number of objects to return, 0 for all
      * @param sortCriteria sort criteria, example: +dc:title
      */
-    public void search(String containerID, String searchCriteria, String filter, String startingIndex,
+    protected void search(String containerID, String searchCriteria, String filter, String startingIndex,
             String requestedCount, String sortCriteria) {
         CompletableFuture<Boolean> browsing = isBrowsing;
         boolean browsed = true;
@@ -286,7 +286,7 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
-    void updateServerState(ChannelUID channelUID, State state) {
+    protected void updateServerState(ChannelUID channelUID, State state) {
         updateState(channelUID, state);
     }
 
