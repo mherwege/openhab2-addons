@@ -32,7 +32,7 @@ public class UpnpControlBindingConfiguration {
 
     private List<UpnpControlBindingConfigurationListener> listeners = new ArrayList<>();
 
-    public @Nullable static String path = DEFAULT_PATH;
+    public @Nullable String path = DEFAULT_PATH;
 
     public void update(UpnpControlBindingConfiguration newConfig) {
         String newPath = path;

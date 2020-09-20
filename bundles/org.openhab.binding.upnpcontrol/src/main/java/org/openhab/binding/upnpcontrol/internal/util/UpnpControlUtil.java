@@ -54,7 +54,7 @@ public final class UpnpControlUtil implements UpnpControlBindingConfigurationLis
 
     @Override
     public void bindingConfigurationChanged(UpnpControlBindingConfiguration bindingConfig) {
-        updatePlaylistsList(UpnpControlBindingConfiguration.path);
+        updatePlaylistsList(bindingConfig.path);
     }
 
     /**

@@ -204,7 +204,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     @Override
     protected void initJob() {
         synchronized (jobLock) {
-            if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
+            if (!ThingStatus.ONLINE.equals(thing.getStatus())) {
                 if (!upnpIOService.isRegistered(this)) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                             "UPnP device with UDN " + getUDN() + " not yet registered");
@@ -801,14 +801,14 @@ public class UpnpRendererHandler extends UpnpHandler {
     private void handleCommandFavoriteSave(Command command) {
         if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
             UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
-            favorite.saveFavorite(favoriteName, UpnpControlBindingConfiguration.path);
+            favorite.saveFavorite(favoriteName, bindingConfig.path);
             updateFavoritesList();
         }
     }
 
     private void handleCommandFavoriteDelete(Command command) {
         if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
-            UpnpControlUtil.deleteFavorite(favoriteName, UpnpControlBindingConfiguration.path);
+            UpnpControlUtil.deleteFavorite(favoriteName, bindingConfig.path);
             updateFavoritesList();
             updateState(FAVORITE, UnDefType.UNDEF);
         }
@@ -818,7 +818,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (command instanceof StringType) {
             String playlistName = command.toString();
             UpnpEntryQueue queue = new UpnpEntryQueue();
-            queue.restoreQueue(playlistName, null, UpnpControlBindingConfiguration.path);
+            queue.restoreQueue(playlistName, null, bindingConfig.path);
             registerQueue(queue);
             resetToStartQueue();
             playingQueue = true;
@@ -849,7 +849,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void playFavorite() {
-        UpnpFavorite favorite = new UpnpFavorite(favoriteName, UpnpControlBindingConfiguration.path);
+        UpnpFavorite favorite = new UpnpFavorite(favoriteName, bindingConfig.path);
         String uri = favorite.getUri();
         UpnpEntry entry = favorite.getUpnpEntry();
         if (!uri.isEmpty()) {
@@ -864,7 +864,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private void updateFavoritesList() {
         synchronized (favoriteCommandOptionList) {
-            favoriteCommandOptionList = UpnpControlUtil.favorites(UpnpControlBindingConfiguration.path).stream()
+            favoriteCommandOptionList = UpnpControlUtil.favorites(bindingConfig.path).stream()
                     .map(p -> (new CommandOption(p, p))).collect(Collectors.toList());
         }
         updateCommandDescription(favoriteSelectChannelUID, favoriteCommandOptionList);
@@ -881,17 +881,11 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     @Override
     public void onStatusChanged(boolean status) {
-        logger.debug("Renderer status changed to {}", status);
-        if (status) {
-            initJob();
-        } else {
+        if (!status) {
             removeSubscriptions();
 
             updateState(CONTROL, PlayPauseType.PAUSE);
             cancelTrackPositionRefresh();
-
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                    "Communication lost with " + thing.getLabel());
         }
         super.onStatusChanged(status);
     }

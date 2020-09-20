@@ -70,12 +70,12 @@ import org.slf4j.LoggerFactory;
 @NonNullByDefault
 public class UpnpServerHandler extends UpnpHandler {
 
-    private static final String DIRECTORY_ROOT = "0";
-    private static final String UP = "..";
+    static final String DIRECTORY_ROOT = "0";
+    static final String UP = "..";
 
     private final Logger logger = LoggerFactory.getLogger(UpnpServerHandler.class);
 
-    private ConcurrentMap<String, UpnpRendererHandler> upnpRenderers;
+    ConcurrentMap<String, UpnpRendererHandler> upnpRenderers;
     private volatile @Nullable UpnpRendererHandler currentRendererHandler;
     private volatile List<StateOption> rendererStateOptionList = Collections.synchronizedList(new ArrayList<>());
 
@@ -91,9 +91,9 @@ public class UpnpServerHandler extends UpnpHandler {
 
     private static final UpnpEntry ROOT_ENTRY = new UpnpEntry(DIRECTORY_ROOT, DIRECTORY_ROOT, DIRECTORY_ROOT,
             "object.container");
-    private volatile UpnpEntry currentEntry = ROOT_ENTRY;
+    volatile UpnpEntry currentEntry = ROOT_ENTRY;
     // current entry list in selection
-    private List<UpnpEntry> entries = Collections.synchronizedList(new ArrayList<>());
+    List<UpnpEntry> entries = Collections.synchronizedList(new ArrayList<>());
     // store parents in hierarchy separately to be able to move up in directory structure
     private ConcurrentMap<String, UpnpEntry> parentMap = new ConcurrentHashMap<>();
 
@@ -162,7 +162,7 @@ public class UpnpServerHandler extends UpnpHandler {
     @Override
     protected void initJob() {
         synchronized (jobLock) {
-            if (!ThingStatus.ONLINE.equals(getThing().getStatus())) {
+            if (!ThingStatus.ONLINE.equals(thing.getStatus())) {
                 if (!upnpIOService.isRegistered(this)) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                             "UPnP device with UDN " + getUDN() + " not yet registered");
@@ -380,7 +380,12 @@ public class UpnpServerHandler extends UpnpHandler {
             currentId = String.valueOf(command);
             logger.debug("Server {}, setting currentId to {}", thing.getLabel(), currentId);
             if (!currentId.isEmpty()) {
-                currentEntry = parentMap.get(currentId);
+                if (parentMap.containsKey(currentId)) {
+                    currentEntry = parentMap.get(currentId);
+                } else {
+                    // The real entry is not in the parentMap yet, so construct a default one
+                    currentEntry = new UpnpEntry(currentId, currentId, DIRECTORY_ROOT, "object.container");
+                }
                 browse(currentId, "BrowseDirectChildren", "*", "0", "0", config.sortcriteria);
             }
         } else if (command instanceof RefreshType) {
@@ -479,7 +484,7 @@ public class UpnpServerHandler extends UpnpHandler {
             }
 
             UpnpEntryQueue queue = new UpnpEntryQueue();
-            queue.restoreQueue(playlistName, config.udn, UpnpControlBindingConfiguration.path);
+            queue.restoreQueue(playlistName, config.udn, bindingConfig.path);
             updateTitleSelection(queue.getEntryList());
 
             UpnpEntry parentEntry = null;
@@ -508,15 +513,15 @@ public class UpnpServerHandler extends UpnpHandler {
                 mediaQueue.add(currentEntry);
             }
             UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
-            queue.persistQueue(playlistName, append, UpnpControlBindingConfiguration.path);
-            UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
+            queue.persistQueue(playlistName, append, bindingConfig.path);
+            UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
         }
     }
 
     private void handleCommandPlaylistDelete(Command command) {
         if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
-            UpnpControlUtil.deletePlaylist(playlistName, UpnpControlBindingConfiguration.path);
-            UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
+            UpnpControlUtil.deletePlaylist(playlistName, bindingConfig.path);
+            UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
             updateState(PLAYLIST, UnDefType.UNDEF);
         }
     }
@@ -631,18 +636,6 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     @Override
-    public void onStatusChanged(boolean status) {
-        logger.debug("Server status of {} changed to {}", thing.getLabel(), status);
-        if (status) {
-            initJob();
-        } else {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                    "Communication lost with " + thing.getLabel());
-        }
-        super.onStatusChanged(status);
-    }
-
-    @Override
     public void onValueReceived(@Nullable String variable, @Nullable String value, @Nullable String service) {
         logger.debug("UPnP device {} received variable {} with value {} from service {}", thing.getLabel(), variable,
                 value, service);
@@ -729,13 +722,13 @@ public class UpnpServerHandler extends UpnpHandler {
                 logger.debug("Nothing to serve from server {} to renderer {}", thing.getLabel(),
                         handler.getThing().getLabel());
             } else {
-                UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, config.udn);
+                UpnpEntryQueue queue = new UpnpEntryQueue(mediaQueue, getUDN());
                 handler.registerQueue(queue);
                 logger.debug("Serving media queue {} from server {} to renderer {}", mediaQueue, thing.getLabel(),
                         handler.getThing().getLabel());
 
                 // always keep a copy of current list
-                queue.persistQueue(UpnpControlBindingConfiguration.path);
+                queue.persistQueue(bindingConfig.path);
             }
         } else {
             logger.warn("Cannot serve media from server {}, no renderer selected", thing.getLabel());

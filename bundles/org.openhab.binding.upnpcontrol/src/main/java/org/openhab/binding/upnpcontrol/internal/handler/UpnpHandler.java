@@ -85,7 +85,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected volatile @Nullable RemoteDevice device;
 
     // The handlers can potentially create an important number of tasks, therefore put them in a separate thread pool
-    protected final ScheduledExecutorService upnpScheduler = ThreadPoolManager.getScheduledPool("binding-upnpcontrol");
+    protected ScheduledExecutorService upnpScheduler = ThreadPoolManager.getScheduledPool("binding-upnpcontrol");
 
     private boolean updateChannels;
     private final List<Channel> updatedChannels = new ArrayList<>();
@@ -147,7 +147,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
         // This action should exist on all media devices and return a result, so a good candidate for testing.
         upnpIOService.addStatusListener(this, "ConnectionManager", "GetCurrentConnectionIDs", config.refresh);
 
-        UpnpControlUtil.updatePlaylistsList(UpnpControlBindingConfiguration.path);
+        UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
         UpnpControlUtil.playlistsSubscribe(this);
     }
 
@@ -408,6 +408,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
 
     @Override
     public void onStatusChanged(boolean status) {
+        logger.debug("UPnP device {} received status update {}", thing.getLabel(), status);
         if (status) {
             initJob();
         } else {
