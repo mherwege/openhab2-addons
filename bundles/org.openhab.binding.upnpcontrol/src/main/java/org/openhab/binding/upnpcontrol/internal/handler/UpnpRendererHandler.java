@@ -629,11 +629,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                 case FAVORITE:
                     handleCommandFavorite(channelUID, command);
                     break;
-                case FAVORITE_SAVE:
-                    handleCommandFavoriteSave(command);
-                    break;
-                case FAVORITE_DELETE:
-                    handleCommandFavoriteDelete(command);
+                case FAVORITE_ACTION:
+                    handleCommandFavoriteAction(command);
                     break;
                 case PLAYLIST_SELECT:
                     handleCommandPlaylistSelect(channelUID, command);
@@ -798,16 +795,29 @@ public class UpnpRendererHandler extends UpnpHandler {
         updateState(channelUID, StringType.valueOf(favoriteName));
     }
 
-    private void handleCommandFavoriteSave(Command command) {
-        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
+    private void handleCommandFavoriteAction(Command command) {
+        if (command instanceof StringType) {
+            switch (command.toString()) {
+                case SAVE:
+                    handleCommandFavoriteSave();
+                    break;
+                case DELETE:
+                    handleCommandFavoriteDelete();
+                    break;
+            }
+        }
+    }
+
+    private void handleCommandFavoriteSave() {
+        if (!favoriteName.isEmpty()) {
             UpnpFavorite favorite = new UpnpFavorite(favoriteName, nowPlayingUri, currentEntry);
             favorite.saveFavorite(favoriteName, bindingConfig.path);
             updateFavoritesList();
         }
     }
 
-    private void handleCommandFavoriteDelete(Command command) {
-        if (OnOffType.ON.equals(command) && !favoriteName.isEmpty()) {
+    private void handleCommandFavoriteDelete() {
+        if (!favoriteName.isEmpty()) {
             UpnpControlUtil.deleteFavorite(favoriteName, bindingConfig.path);
             updateFavoritesList();
             updateState(FAVORITE, UnDefType.UNDEF);

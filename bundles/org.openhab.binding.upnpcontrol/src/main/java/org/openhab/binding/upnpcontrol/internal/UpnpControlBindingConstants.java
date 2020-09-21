@@ -63,8 +63,7 @@ public class UpnpControlBindingConstants {
     public static final String URI = "uri";
     public static final String FAVORITE_SELECT = "favoriteselect";
     public static final String FAVORITE = "favorite";
-    public static final String FAVORITE_SAVE = "favoritesave";
-    public static final String FAVORITE_DELETE = "favoritedelete";
+    public static final String FAVORITE_ACTION = "favoriteaction";
     public static final String TITLE = "title";
     public static final String ALBUM = "album";
     public static final String ALBUM_ART = "albumart";
@@ -84,12 +83,15 @@ public class UpnpControlBindingConstants {
     public static final String SERVE = "serve";
     public static final String PLAYLIST_SELECT = "playlistselect";
     public static final String PLAYLIST = "playlist";
-    public static final String PLAYLIST_RESTORE = "playlistrestore";
-    public static final String PLAYLIST_SAVE = "playlistsave";
-    public static final String PLAYLIST_APPEND = "playlistappend";
-    public static final String PLAYLIST_DELETE = "playlistdelete";
+    public static final String PLAYLIST_ACTION = "playlistaction";
 
-    // channels that are duplicated on server to control current renderer
+    // Command options for playlist and favorite actions
+    public static final String RESTORE = "RESTORE";
+    public static final String SAVE = "SAVE";
+    public static final String APPEND = "APPEND";
+    public static final String DELETE = "DELETE";
+
+    // Channels that are duplicated on server to control current renderer
     public static final Set<String> SERVER_CONTROL_CHANNELS = Stream.of(VOLUME, MUTE, CONTROL, STOP)
             .collect(Collectors.toSet());
 

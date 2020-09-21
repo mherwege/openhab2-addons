@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.smarthome.core.library.types.OnOffType;
 import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -313,17 +312,8 @@ public class UpnpServerHandler extends UpnpHandler {
             case PLAYLIST:
                 handleCommandPlaylist(channelUID, command);
                 break;
-            case PLAYLIST_RESTORE:
-                handleCommandPlaylistRestore(command);
-                break;
-            case PLAYLIST_SAVE:
-                handleCommandPlaylistSave(command, false);
-                break;
-            case PLAYLIST_APPEND:
-                handleCommandPlaylistSave(command, true);
-                break;
-            case PLAYLIST_DELETE:
-                handleCommandPlaylistDelete(command);
+            case PLAYLIST_ACTION:
+                handleCommandPlaylistAction(command);
                 break;
             case VOLUME:
             case MUTE:
@@ -468,8 +458,27 @@ public class UpnpServerHandler extends UpnpHandler {
         updateState(channelUID, StringType.valueOf(playlistName));
     }
 
-    private void handleCommandPlaylistRestore(Command command) {
-        if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+    private void handleCommandPlaylistAction(Command command) {
+        if (command instanceof StringType) {
+            switch (command.toString()) {
+                case RESTORE:
+                    handleCommandPlaylistRestore();
+                    break;
+                case SAVE:
+                    handleCommandPlaylistSave(false);
+                    break;
+                case APPEND:
+                    handleCommandPlaylistSave(true);
+                    break;
+                case DELETE:
+                    handleCommandPlaylistDelete();
+                    break;
+            }
+        }
+    }
+
+    private void handleCommandPlaylistRestore() {
+        if (!playlistName.isEmpty()) {
             // Don't immediately restore a playlist if a browse or search is still underway, or it could get overwritten
             CompletableFuture<Boolean> browsing = isBrowsing;
             try {
@@ -505,8 +514,8 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
-    private void handleCommandPlaylistSave(Command command, boolean append) {
-        if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+    private void handleCommandPlaylistSave(boolean append) {
+        if (!playlistName.isEmpty()) {
             List<UpnpEntry> mediaQueue = new ArrayList<>();
             mediaQueue.addAll(entries);
             if (mediaQueue.isEmpty() && !currentEntry.isContainer()) {
@@ -518,8 +527,8 @@ public class UpnpServerHandler extends UpnpHandler {
         }
     }
 
-    private void handleCommandPlaylistDelete(Command command) {
-        if (OnOffType.ON.equals(command) && !playlistName.isEmpty()) {
+    private void handleCommandPlaylistDelete() {
+        if (!playlistName.isEmpty()) {
             UpnpControlUtil.deletePlaylist(playlistName, bindingConfig.path);
             UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
             updateState(PLAYLIST, UnDefType.UNDEF);
