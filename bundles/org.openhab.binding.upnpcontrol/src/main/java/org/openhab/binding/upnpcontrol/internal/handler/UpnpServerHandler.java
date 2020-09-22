@@ -405,13 +405,19 @@ public class UpnpServerHandler extends UpnpHandler {
                 if (UP.equals(browseTarget)) {
                     // Move up in tree
                     browseTarget = currentEntry.getParentId();
-                    if (browseTarget.isEmpty() || !parentMap.containsKey(browseTarget)) {
+                    if (browseTarget.isEmpty()) {
                         // No parent found, so make it the root directory
                         browseTarget = DIRECTORY_ROOT;
                     }
-                    currentEntry = parentMap.get(browseTarget);
+                    if (parentMap.containsKey(browseTarget)) {
+                        currentEntry = parentMap.get(browseTarget);
+                    } else {
+                        // The real entry is not in the parentMap yet, so construct a default one
+                        currentEntry = new UpnpEntry(browseTarget, browseTarget, DIRECTORY_ROOT, "object.container");
+                    }
                     browseUp = true;
                 }
+
                 logger.debug("Navigating to node {} on server {}", currentEntry.getId(), thing.getLabel());
                 updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
                 logger.debug("Browse target {}", browseTarget);
@@ -430,11 +436,16 @@ public class UpnpServerHandler extends UpnpHandler {
                 } else {
                     searchContainer = currentEntry.getParentId();
                 }
-                if (config.searchfromroot || !parentMap.containsKey(searchContainer)) {
+                if (config.searchfromroot || searchContainer.isEmpty()) {
                     // Config option search from root or no parent found, so make it the root directory
                     searchContainer = DIRECTORY_ROOT;
                 }
-                currentEntry = parentMap.get(searchContainer);
+                if (parentMap.containsKey(searchContainer)) {
+                    currentEntry = parentMap.get(searchContainer);
+                } else {
+                    // The real entry is not in the parentMap yet, so construct a default one
+                    currentEntry = new UpnpEntry(searchContainer, searchContainer, DIRECTORY_ROOT, "object.container");
+                }
 
                 logger.debug("Navigating to node {} on server {}", searchContainer, thing.getLabel());
                 updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
@@ -496,20 +507,22 @@ public class UpnpServerHandler extends UpnpHandler {
             queue.restoreQueue(playlistName, config.udn, bindingConfig.path);
             updateTitleSelection(queue.getEntryList());
 
-            UpnpEntry parentEntry = null;
+            String parentId;
             UpnpEntry current = queue.get(0);
             if (current != null) {
-                parentEntry = parentMap.get(current.getParentId());
+                parentId = current.getParentId();
+                if (parentMap.containsKey(parentId)) {
+                    currentEntry = parentMap.get(parentId);
+                } else {
+                    // The real entry is not in the parentMap yet, so construct a default one
+                    currentEntry = new UpnpEntry(parentId, parentId, DIRECTORY_ROOT, "object.container");
+                }
+            } else {
+                parentId = DIRECTORY_ROOT;
+                currentEntry = ROOT_ENTRY;
             }
-            if (parentEntry == null) {
-                // No entries in restored queue, or we cannot find the parent of the first element in the queue in our
-                // parentMap cache
-                parentEntry = parentMap.get(DIRECTORY_ROOT);
-                logger.debug(
-                        "Server {}, restoring playlist, no known parent for first entry, setting currentId to root",
-                        thing.getLabel());
-            }
-            currentEntry = parentEntry;
+
+            logger.debug("Restoring playlist to node {} on server {}", parentId, thing.getLabel());
             updateState(CURRENTID, StringType.valueOf(currentEntry.getId()));
         }
     }
@@ -623,7 +636,8 @@ public class UpnpServerHandler extends UpnpHandler {
     }
 
     /**
-     * Filter a list of media and only keep the media that are playable on the currently selected renderer.
+     * Filter a list of media and only keep the media that are playable on the currently selected renderer. Return all
+     * if no renderer is selected.
      *
      * @param resultList
      * @param includeContainers
@@ -631,15 +645,14 @@ public class UpnpServerHandler extends UpnpHandler {
      */
     private List<UpnpEntry> filterEntries(List<UpnpEntry> resultList, boolean includeContainers) {
         logger.debug("Server {}, raw result list {}", thing.getLabel(), resultList);
-        List<UpnpEntry> list = new ArrayList<>();
+
         UpnpRendererHandler handler = currentRendererHandler;
-        if (handler != null) {
-            List<String> sink = handler.getSink();
-            list = resultList.stream()
-                    .filter(entry -> (includeContainers && entry.isContainer())
-                            || UpnpProtocolMatcher.testProtocolList(entry.getProtocolList(), sink))
-                    .collect(Collectors.toList());
-        }
+        List<String> sink = (handler != null) ? handler.getSink() : null;
+        List<UpnpEntry> list = resultList.stream()
+                .filter(entry -> ((includeContainers && entry.isContainer()) || (sink == null) && !entry.isContainer())
+                        || ((sink != null) && UpnpProtocolMatcher.testProtocolList(entry.getProtocolList(), sink)))
+                .collect(Collectors.toList());
+
         logger.debug("Server {}, filtered result list {}", thing.getLabel(), list);
         return list;
     }
@@ -736,8 +749,9 @@ public class UpnpServerHandler extends UpnpHandler {
                 logger.debug("Serving media queue {} from server {} to renderer {}", mediaQueue, thing.getLabel(),
                         handler.getThing().getLabel());
 
-                // always keep a copy of current list
+                // always keep a copy of current list that is being served
                 queue.persistQueue(bindingConfig.path);
+                UpnpControlUtil.updatePlaylistsList(bindingConfig.path);
             }
         } else {
             logger.warn("Cannot serve media from server {}, no renderer selected", thing.getLabel());

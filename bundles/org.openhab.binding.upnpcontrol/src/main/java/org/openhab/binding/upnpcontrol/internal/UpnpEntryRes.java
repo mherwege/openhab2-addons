@@ -20,7 +20,7 @@ import org.eclipse.jdt.annotation.Nullable;
  * @author Mark Herwege - Initial contribution
  */
 @NonNullByDefault
-class UpnpEntryRes {
+public class UpnpEntryRes {
 
     private String protocolInfo;
     private @Nullable Long size;
@@ -28,7 +28,8 @@ class UpnpEntryRes {
     private String importUri;
     private String res = "";
 
-    UpnpEntryRes(String protocolInfo, @Nullable Long size, @Nullable String duration, @Nullable String importUri) {
+    public UpnpEntryRes(String protocolInfo, @Nullable Long size, @Nullable String duration,
+            @Nullable String importUri) {
         this.protocolInfo = protocolInfo.trim();
         this.size = size;
         this.duration = (duration == null) ? "" : duration.trim();

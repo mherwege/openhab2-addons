@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.upnpcontrol.internal.UpnpPlaylistsListener;
-import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfigurationListener;
 
 /**
@@ -53,8 +52,8 @@ public final class UpnpControlUtil implements UpnpControlBindingConfigurationLis
     }
 
     @Override
-    public void bindingConfigurationChanged(UpnpControlBindingConfiguration bindingConfig) {
-        updatePlaylistsList(bindingConfig.path);
+    public void bindingConfigurationChanged(@Nullable String path) {
+        updatePlaylistsList(path);
     }
 
     /**
@@ -108,7 +107,7 @@ public final class UpnpControlUtil implements UpnpControlBindingConfigurationLis
         return result;
     }
 
-    public static void delete(String name, @Nullable String path, String extension) {
+    private static void delete(String name, @Nullable String path, String extension) {
         if (path == null) {
             return;
         }

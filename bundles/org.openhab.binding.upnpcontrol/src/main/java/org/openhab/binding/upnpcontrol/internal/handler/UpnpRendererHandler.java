@@ -118,28 +118,28 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     // Queue as received from server and current and next media entries for playback
     private volatile UpnpEntryQueue currentQueue = new UpnpEntryQueue();
-    private volatile @Nullable UpnpEntry currentEntry = null;
-    private volatile @Nullable UpnpEntry nextEntry = null;
+    volatile @Nullable UpnpEntry currentEntry = null;
+    volatile @Nullable UpnpEntry nextEntry = null;
 
     // Group of fields representing current state of player
     private volatile String nowPlayingUri = ""; // Used to block waiting for setting URI when it is the same as current
                                                 // as some players will not send URI update when it is the same as
                                                 // previous
     private volatile String transportState = ""; // Current transportState to be able to refresh the control
-    private volatile boolean playerStopped; // Set if the player is stopped from OH command or code, allows to identify
-                                            // if STOP came from other source when receiving STOP state from GENA event
-    private volatile boolean playing; // Set to false when a STOP is received, so we can filter two consecutive STOPs
-                                      // and not play next entry second time
+    volatile boolean playerStopped; // Set if the player is stopped from OH command or code, allows to identify
+                                    // if STOP came from other source when receiving STOP state from GENA event
+    volatile boolean playing; // Set to false when a STOP is received, so we can filter two consecutive STOPs
+                              // and not play next entry second time
     private volatile @Nullable ScheduledFuture<?> paused; // Set when a pause command is given, to compensate for
                                                           // renderers that cannot pause playback
     private volatile @Nullable CompletableFuture<Boolean> isSettingURI; // Set to wait for setting URI before starting
                                                                         // to play
-    private volatile boolean registeredQueue; // Set when registering a new queue. This allows to decide if we just
-                                              // need to play URI, or serve the first entry in a queue when a play
-                                              // command is given.
-    private volatile boolean playingQueue; // Identifies if we are playing a queue received from a server. If so, a new
-                                           // queue received will be played after the currently playing entry.
-    private volatile boolean oneplayed; // When playing one at a time, set to true when the one is being played
+    volatile boolean registeredQueue; // Set when registering a new queue. This allows to decide if we just
+                                      // need to play URI, or serve the first entry in a queue when a play
+                                      // command is given.
+    volatile boolean playingQueue; // Identifies if we are playing a queue received from a server. If so, a new
+                                   // queue received will be played after the currently playing entry.
+    volatile boolean oneplayed; // When playing one at a time, set to true when the one is being played
 
     // Track position and duration fields
     private volatile int trackDuration = 0;

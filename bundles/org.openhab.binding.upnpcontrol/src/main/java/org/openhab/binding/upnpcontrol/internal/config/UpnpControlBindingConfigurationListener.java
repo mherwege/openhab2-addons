@@ -13,6 +13,7 @@
 package org.openhab.binding.upnpcontrol.internal.config;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 
 /**
  * Listener interface for binding configuration parameter updates.
@@ -22,5 +23,5 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 @NonNullByDefault
 public interface UpnpControlBindingConfigurationListener {
 
-    public void bindingConfigurationChanged(UpnpControlBindingConfiguration bindingConfig);
+    public void bindingConfigurationChanged(@Nullable String path);
 }

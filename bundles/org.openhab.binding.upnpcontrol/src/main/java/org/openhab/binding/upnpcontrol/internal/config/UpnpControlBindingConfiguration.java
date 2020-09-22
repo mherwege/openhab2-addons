@@ -62,6 +62,6 @@ public class UpnpControlBindingConfiguration {
     }
 
     private void notifyListeners() {
-        listeners.forEach(l -> l.bindingConfigurationChanged(this));
+        listeners.forEach(l -> l.bindingConfigurationChanged(this.path));
     }
 }
