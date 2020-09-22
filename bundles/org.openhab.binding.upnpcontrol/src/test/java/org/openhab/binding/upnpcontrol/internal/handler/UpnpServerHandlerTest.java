@@ -26,31 +26,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingUID;
-import org.eclipse.smarthome.core.thing.binding.ThingHandlerCallback;
 import org.eclipse.smarthome.core.thing.binding.builder.ChannelBuilder;
 import org.eclipse.smarthome.core.types.CommandOption;
-import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
-import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
-import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
-import org.openhab.binding.upnpcontrol.internal.config.UpnpControlConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlServerConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +53,7 @@ import org.slf4j.LoggerFactory;
  */
 @SuppressWarnings({ "null", "unchecked" })
 @NonNullByDefault
-public class UpnpServerHandlerTest {
+public class UpnpServerHandlerTest extends UpnpHandlerTest {
 
     private final Logger logger = LoggerFactory.getLogger(UpnpServerHandlerTest.class);
 
@@ -91,7 +82,7 @@ public class UpnpServerHandlerTest {
             + "<container id=\"C11\" searchable=\"0\" parentID=\"C1\" restricted=\"1\" childCount=\"2\">"
             + "<dc:title>Morning Music</dc:title><upnp:class>object.container</upnp:class>"
             + "<upnp:writeStatus>UNKNOWN</upnp:writeStatus></container>"
-            + "<container id=\"C12\" searchable=\"0\" parentID=\"C1\" restricted=\"1\" childCount=\"0\">"
+            + "<container id=\"C12\" searchable=\"0\" parentID=\"C1\" restricted=\"1\" childCount=\"1\">"
             + "<dc:title>Evening Music</dc:title><upnp:class>object.container</upnp:class>"
             + "<upnp:writeStatus>UNKNOWN</upnp:writeStatus></container>" + RESPONSE_FOOTER;
 
@@ -112,7 +103,13 @@ public class UpnpServerHandlerTest {
             + "<res protocolInfo=\"http-get:*:audio/wav:*\" size=\"1156598\" importUri=\"http://MediaServerContent_0/3/M2/\">http://MediaServerContent_0/3/M2/Test_2.wav</res>"
             + "<upnp:writeStatus>UNKNOWN</upnp:writeStatus></item>" + RESPONSE_FOOTER;
 
-    private @Nullable UpnpServerHandler handler;
+    private static final String EXTRA_MEDIA = RESPONSE_HEADER + "<item id=\"M3\" parentID=\"C12\" restricted=\"1\">"
+            + "<dc:title>Extra_01</dc:title><upnp:class>object.item.audioItem</upnp:class>"
+            + "<dc:creator>Creator_3</dc:creator>"
+            + "<res protocolInfo=\"http-get:*:audio/mpeg:*\" size=\"8054458\" importUri=\"http://MediaServerContent_0/1/M3/\">http://MediaServerContent_0/1/M3/Test_3.mp3</res>"
+            + "<upnp:writeStatus>UNKNOWN</upnp:writeStatus></item>" + RESPONSE_FOOTER;
+
+    protected @Nullable UpnpServerHandler handler;
 
     private ChannelUID rendererChannelUID = new ChannelUID(THING_UID + ":" + UPNPRENDERER);
     private Channel rendererChannel = ChannelBuilder.create(rendererChannelUID, "String").build();
@@ -129,46 +126,27 @@ public class UpnpServerHandlerTest {
     private ChannelUID playlistSelectChannelUID = new ChannelUID(THING_UID + ":" + PLAYLIST_SELECT);
     private Channel playlistSelectChannel = ChannelBuilder.create(playlistSelectChannelUID, "String").build();
 
-    @Mock
-    private @Nullable Thing thing;
+    private ChannelUID playlistChannelUID = new ChannelUID(THING_UID + ":" + PLAYLIST);
+    private Channel playlistChannel = ChannelBuilder.create(playlistChannelUID, "String").build();
+
+    private ChannelUID playlistActionChannelUID = new ChannelUID(THING_UID + ":" + PLAYLIST_ACTION);
+    private Channel playlistActionChannel = ChannelBuilder.create(playlistActionChannelUID, "String").build();
 
     private ConcurrentMap<String, UpnpRendererHandler> upnpRenderers = new ConcurrentHashMap<>();
-
-    @Mock
-    private @Nullable UpnpIOService upnpIOService;
-
-    @Mock
-    private @Nullable UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider;
-
-    @Mock
-    private @Nullable UpnpDynamicCommandDescriptionProvider upnpCommandDescriptionProvider;
-
-    @Mock
-    private @Nullable UpnpControlBindingConfiguration configuration;
 
     @Mock
     private @Nullable UpnpRendererHandler rendererHandler;
     @Mock
     private @Nullable Thing rendererThing;
 
-    @Mock
-    private @Nullable Configuration config;
-
-    @Mock
-    private @Nullable ScheduledExecutorService scheduler;
-
-    @Mock
-    private @Nullable ThingHandlerCallback callback;
-
+    @Override
     @Before
     public void setUp() {
         initMocks(this);
 
-        // don't test for multi-threading, so avoid using extra threads
-        implementAsDirectExecutor(requireNonNull(scheduler));
+        super.setUp();
 
         // stub thing methods
-        when(thing.getConfiguration()).thenReturn(requireNonNull(config));
         when(thing.getUID()).thenReturn(new ThingUID("upnpcontrol", "upnpserver", "mockserver"));
         when(thing.getLabel()).thenReturn("MockServer");
         when(thing.getStatus()).thenReturn(ThingStatus.OFFLINE);
@@ -177,7 +155,6 @@ public class UpnpServerHandlerTest {
         Map<String, String> result = new HashMap<>();
         result.put("Result", BASE_CONTAINER);
         when(upnpIOService.invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap())).thenReturn(result);
-        when(upnpIOService.isRegistered(any())).thenReturn(true);
 
         // stub rendererHandler, so that only one protocol is supported and results should be filtered when filter true
         when(rendererHandler.getSink()).thenReturn(Arrays.asList("http-get:*:audio/mpeg:*"));
@@ -192,44 +169,27 @@ public class UpnpServerHandlerTest {
         when(thing.getChannel(BROWSE)).thenReturn(browseChannel);
         when(thing.getChannel(SEARCH)).thenReturn(searchChannel);
         when(thing.getChannel(PLAYLIST_SELECT)).thenReturn(playlistSelectChannel);
+        when(thing.getChannel(PLAYLIST)).thenReturn(playlistChannel);
+        when(thing.getChannel(PLAYLIST_ACTION)).thenReturn(playlistActionChannel);
 
         // stub config for initialize
-        when(config.as(UpnpControlConfiguration.class)).thenReturn(new UpnpControlConfiguration());
         when(config.as(UpnpControlServerConfiguration.class)).thenReturn(new UpnpControlServerConfiguration());
 
         handler = spy(new UpnpServerHandler(requireNonNull(thing), requireNonNull(upnpIOService),
                 requireNonNull(upnpRenderers), requireNonNull(upnpStateDescriptionProvider),
-                requireNonNull(upnpCommandDescriptionProvider), requireNonNull(configuration)));
-        handler.setCallback(callback);
-        handler.upnpScheduler = requireNonNull(scheduler);
+                requireNonNull(upnpCommandDescriptionProvider), configuration));
 
-        doReturn("12345").when(handler).getUDN();
+        initHandler(requireNonNull(handler));
 
         handler.initialize();
     }
 
-    /**
-     * Mock the {@link ScheduledExecutorService}, so all testing is done in the current thread. We do not test
-     * request/response with a real media server, so do not need the executor to avoid long running processes.
-     *
-     * @param executor
-     */
-    private void implementAsDirectExecutor(ScheduledExecutorService executor) {
-        doAnswer(invocation -> {
-            ((Runnable) invocation.getArguments()[0]).run();
-            return null;
-        }).when(executor).submit(any(Runnable.class));
-        doAnswer(invocation -> {
-            ((Runnable) invocation.getArguments()[0]).run();
-            return null;
-        }).when(executor).scheduleWithFixedDelay(any(Runnable.class), eq(0L), anyLong(), any(TimeUnit.class));
-    }
-
+    @Override
     @After
     public void tearDown() {
         handler.dispose();
 
-        logger.info("-----------------------------------------------------------------------------------");
+        super.tearDown();
     }
 
     @Test
@@ -496,5 +456,375 @@ public class UpnpServerHandlerTest {
 
         // Check media queue serving
         verify(rendererHandler, times(0)).registerQueue(any());
+    }
+
+    @Test
+    public void testSearchOneContainerNotFromRootNoBrowseDown() {
+        logger.info("testSearchOneContainerNotFromRootNoBrowseDown");
+
+        handler.config.filter = false;
+        handler.config.browsedown = false;
+        handler.config.searchfromroot = false;
+
+        // First navigate away from root
+        Map<String, String> result = new HashMap<>();
+        result.put("Result", DOUBLE_CONTAINER);
+        doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+
+        Map<String, String> resultContainer = new HashMap<>();
+        resultContainer.put("Result", SINGLE_CONTAINER);
+        Map<String, String> resultMedia = new HashMap<>();
+        resultMedia.put("Result", DOUBLE_MEDIA);
+        doReturn(resultContainer).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"),
+                anyMap());
+        doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+
+        String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
+        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+
+        // Check currentEntry
+        assertThat(handler.currentEntry.getId(), is("C1"));
+
+        // Check CURRENTID
+        ArgumentCaptor<StringType> stringCaptor = ArgumentCaptor.forClass(StringType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CURRENTID).getUID()), stringCaptor.capture());
+        assertThat(stringCaptor.getValue(), is(StringType.valueOf("C1")));
+
+        // Check entries
+        assertThat(handler.entries.size(), is(1));
+        assertThat(handler.entries.get(0).getId(), is("C11"));
+        assertThat(handler.entries.get(0).getTitle(), is("Morning Music"));
+
+        // Check that BROWSE channel gets the correct command options
+        ArgumentCaptor<List<CommandOption>> commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(BROWSE).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(2));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(1).getCommand(), is("C11"));
+        assertThat(commandOptionListCaptor.getValue().get(1).getLabel(), is("Morning Music"));
+
+        // Check that a no media queue is being served as there is no renderer selected
+        verify(rendererHandler, times(0)).registerQueue(any());
+    }
+
+    @Test
+    public void testSearchOneContainerNotFromRootBrowseDown() {
+        logger.info("testSearchOneContainerNotFromRootBrowseDown");
+
+        handler.config.filter = false;
+        handler.config.browsedown = true;
+        handler.config.searchfromroot = false;
+
+        // First navigate away from root
+        Map<String, String> result = new HashMap<>();
+        result.put("Result", DOUBLE_CONTAINER);
+        doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+
+        Map<String, String> resultContainer = new HashMap<>();
+        resultContainer.put("Result", SINGLE_CONTAINER);
+        Map<String, String> resultMedia = new HashMap<>();
+        resultMedia.put("Result", DOUBLE_MEDIA);
+        doReturn(resultContainer).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"),
+                anyMap());
+        doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+
+        String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
+        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+
+        // Check currentEntry
+        assertThat(handler.currentEntry.getId(), is("C11"));
+
+        // Check CURRENTID
+        ArgumentCaptor<StringType> stringCaptor = ArgumentCaptor.forClass(StringType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CURRENTID).getUID()), stringCaptor.capture());
+        assertThat(stringCaptor.getValue(), is(StringType.valueOf("C11")));
+
+        // Check entries
+        assertThat(handler.entries.size(), is(2));
+        assertThat(handler.entries.get(0).getId(), is("M1"));
+        assertThat(handler.entries.get(0).getTitle(), is("Music_01"));
+        assertThat(handler.entries.get(1).getId(), is("M2"));
+        assertThat(handler.entries.get(1).getTitle(), is("Music_02"));
+
+        // Check that BROWSE channel gets the correct command options
+        ArgumentCaptor<List<CommandOption>> commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(BROWSE).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(3));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(1).getCommand(), is("M1"));
+        assertThat(commandOptionListCaptor.getValue().get(1).getLabel(), is("Music_01"));
+        assertThat(commandOptionListCaptor.getValue().get(2).getCommand(), is("M2"));
+        assertThat(commandOptionListCaptor.getValue().get(2).getLabel(), is("Music_02"));
+
+        // Check that a no media queue is being served as there is no renderer selected
+        verify(rendererHandler, times(0)).registerQueue(any());
+    }
+
+    @Test
+    public void testSearchOneContainerFromRootNoBrowseDown() {
+        logger.info("testSearchOneContainerFromRootNoBrowseDown");
+
+        handler.config.filter = false;
+        handler.config.browsedown = false;
+        handler.config.searchfromroot = true;
+
+        // First navigate away from root
+        Map<String, String> result = new HashMap<>();
+        result.put("Result", DOUBLE_CONTAINER);
+        doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+
+        Map<String, String> resultContainer = new HashMap<>();
+        resultContainer.put("Result", SINGLE_CONTAINER);
+        Map<String, String> resultMedia = new HashMap<>();
+        resultMedia.put("Result", DOUBLE_MEDIA);
+        doReturn(resultContainer).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"),
+                anyMap());
+        doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+
+        String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
+        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+
+        // Check currentEntry
+        assertThat(handler.currentEntry.getId(), is("0"));
+
+        // Check CURRENTID
+        ArgumentCaptor<StringType> stringCaptor = ArgumentCaptor.forClass(StringType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CURRENTID).getUID()), stringCaptor.capture());
+        assertThat(stringCaptor.getValue(), is(StringType.valueOf("0")));
+
+        // Check entries
+        assertThat(handler.entries.size(), is(1));
+        assertThat(handler.entries.get(0).getId(), is("C11"));
+        assertThat(handler.entries.get(0).getTitle(), is("Morning Music"));
+
+        // Check that BROWSE channel gets the correct command options
+        ArgumentCaptor<List<CommandOption>> commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(BROWSE).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(2));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(1).getCommand(), is("C11"));
+        assertThat(commandOptionListCaptor.getValue().get(1).getLabel(), is("Morning Music"));
+
+        // Check that a no media queue is being served as there is no renderer selected
+        verify(rendererHandler, times(0)).registerQueue(any());
+    }
+
+    @Test
+    public void testSearchOneContainerFromRootBrowseDown() {
+        logger.info("testSearchOneContainerFromRootBrowseDown");
+
+        handler.config.filter = false;
+        handler.config.browsedown = true;
+        handler.config.searchfromroot = true;
+
+        // First navigate away from root
+        Map<String, String> result = new HashMap<>();
+        result.put("Result", DOUBLE_CONTAINER);
+        doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+
+        Map<String, String> resultContainer = new HashMap<>();
+        resultContainer.put("Result", SINGLE_CONTAINER);
+        Map<String, String> resultMedia = new HashMap<>();
+        resultMedia.put("Result", DOUBLE_MEDIA);
+        doReturn(resultContainer).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"),
+                anyMap());
+        doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+
+        String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
+        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+
+        // Check currentEntry
+        assertThat(handler.currentEntry.getId(), is("C11"));
+
+        // Check CURRENTID
+        ArgumentCaptor<StringType> stringCaptor = ArgumentCaptor.forClass(StringType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CURRENTID).getUID()), stringCaptor.capture());
+        assertThat(stringCaptor.getValue(), is(StringType.valueOf("C11")));
+
+        // Check entries
+        assertThat(handler.entries.size(), is(2));
+        assertThat(handler.entries.get(0).getId(), is("M1"));
+        assertThat(handler.entries.get(0).getTitle(), is("Music_01"));
+        assertThat(handler.entries.get(1).getId(), is("M2"));
+        assertThat(handler.entries.get(1).getTitle(), is("Music_02"));
+
+        // Check that BROWSE channel gets the correct command options
+        ArgumentCaptor<List<CommandOption>> commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(BROWSE).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(3));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(1).getCommand(), is("M1"));
+        assertThat(commandOptionListCaptor.getValue().get(1).getLabel(), is("Music_01"));
+        assertThat(commandOptionListCaptor.getValue().get(2).getCommand(), is("M2"));
+        assertThat(commandOptionListCaptor.getValue().get(2).getLabel(), is("Music_02"));
+
+        // Check that a no media queue is being served as there is no renderer selected
+        verify(rendererHandler, times(0)).registerQueue(any());
+    }
+
+    @Test
+    public void testSearchMediaFromRootBrowseDownFilter() {
+        logger.info("testSearchMediaFromRootBrowseDownFilter");
+
+        handler.config.filter = true;
+        handler.config.browsedown = true;
+        handler.config.searchfromroot = true;
+
+        // First navigate away from root
+        Map<String, String> result = new HashMap<>();
+        result.put("Result", DOUBLE_CONTAINER);
+        doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
+        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+
+        Map<String, String> resultMedia = new HashMap<>();
+        resultMedia.put("Result", DOUBLE_MEDIA);
+        doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"), anyMap());
+
+        String searchString = "dc:title contains \"Music\"";
+        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+
+        // Check currentEntry
+        assertThat(handler.currentEntry.getId(), is("0"));
+
+        // Check CURRENTID
+        ArgumentCaptor<StringType> stringCaptor = ArgumentCaptor.forClass(StringType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CURRENTID).getUID()), stringCaptor.capture());
+        assertThat(stringCaptor.getValue(), is(StringType.valueOf("0")));
+
+        // Check entries
+        assertThat(handler.entries.size(), is(2));
+        assertThat(handler.entries.get(0).getId(), is("M1"));
+        assertThat(handler.entries.get(0).getTitle(), is("Music_01"));
+        assertThat(handler.entries.get(1).getId(), is("M2"));
+        assertThat(handler.entries.get(1).getTitle(), is("Music_02"));
+
+        // Check that BROWSE channel gets the correct command options
+        ArgumentCaptor<List<CommandOption>> commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(BROWSE).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(3));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is(".."));
+        assertThat(commandOptionListCaptor.getValue().get(1).getCommand(), is("M1"));
+        assertThat(commandOptionListCaptor.getValue().get(1).getLabel(), is("Music_01"));
+        assertThat(commandOptionListCaptor.getValue().get(2).getCommand(), is("M2"));
+        assertThat(commandOptionListCaptor.getValue().get(2).getLabel(), is("Music_02"));
+
+        // Check that a no media queue is being served as there is no renderer selected
+        verify(rendererHandler, times(0)).registerQueue(any());
+    }
+
+    @Test
+    public void testPlaylist() {
+        logger.info("testPlaylist");
+
+        handler.config.filter = false;
+        handler.config.browsedown = false;
+        handler.config.searchfromroot = true;
+
+        // Check already called in initialize
+        verify(handler).playlistsListChanged();
+
+        // First search for media
+        Map<String, String> resultMedia = new HashMap<>();
+        resultMedia.put("Result", DOUBLE_MEDIA);
+        doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"), anyMap());
+        String searchString = "dc:title contains \"Music\"";
+        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+
+        // Save playlist
+        handler.handleCommand(thing.getChannel(PLAYLIST).getUID(), StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("SAVE"));
+
+        // Check called after saving playlist
+        verify(handler, times(2)).playlistsListChanged();
+
+        // Check that PLAYLIST_SELECT channel now has the playlist as a state option
+        ArgumentCaptor<List<CommandOption>> commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(PLAYLIST_SELECT).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(1));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is("Test_Playlist"));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is("Test_Playlist"));
+
+        // Clear PLAYLIST channel
+        handler.handleCommand(thing.getChannel(PLAYLIST).getUID(), StringType.valueOf(""));
+
+        // Search for some extra media
+        resultMedia = new HashMap<>();
+        resultMedia.put("Result", EXTRA_MEDIA);
+        doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"), anyMap());
+        searchString = "dc:title contains \"Extra\"";
+        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+
+        // Append to playlist
+        handler.handleCommand(thing.getChannel(PLAYLIST_SELECT).getUID(), StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("APPEND"));
+
+        // Check called after appending to playlist
+        verify(handler, times(3)).playlistsListChanged();
+
+        // Check that PLAYLIST channel received "Test_Playlist"
+        ArgumentCaptor<StringType> stringCaptor = ArgumentCaptor.forClass(StringType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(PLAYLIST).getUID()), stringCaptor.capture());
+        assertThat(stringCaptor.getValue(), is(StringType.valueOf("Test_Playlist")));
+
+        // Clear PLAYLIST channel
+        handler.handleCommand(thing.getChannel(PLAYLIST).getUID(), StringType.valueOf(""));
+
+        // Restore playlist
+        handler.handleCommand(thing.getChannel(PLAYLIST_SELECT).getUID(), StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("RESTORE"));
+
+        // Check currentEntry
+        assertThat(handler.currentEntry.getId(), is("C11"));
+
+        // Check entries
+        assertThat(handler.entries.size(), is(3));
+        assertThat(handler.entries.get(0).getId(), is("M1"));
+        assertThat(handler.entries.get(0).getTitle(), is("Music_01"));
+        assertThat(handler.entries.get(1).getId(), is("M2"));
+        assertThat(handler.entries.get(1).getTitle(), is("Music_02"));
+        assertThat(handler.entries.get(2).getId(), is("M3"));
+        assertThat(handler.entries.get(2).getTitle(), is("Extra_01"));
+
+        // Delete playlist
+        handler.handleCommand(thing.getChannel(PLAYLIST_SELECT).getUID(), StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("DELETE"));
+
+        // Check called after deleting playlist
+        verify(handler, times(4)).playlistsListChanged();
+
+        // Check that PLAYLIST_SELECT channel is empty again
+        commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(PLAYLIST_SELECT).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(0));
+
+        // select a renderer, so we expect the "current" playlist to be created
+        handler.handleCommand(thing.getChannel(UPNPRENDERER).getUID(),
+                StringType.valueOf(rendererThing.getUID().toString()));
+
+        // Check called after selecting renderer
+        verify(handler, times(5)).playlistsListChanged();
+
+        // Check that PLAYLIST_SELECT channel received "current" playlist
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(PLAYLIST_SELECT).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(1));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is("current"));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is("current"));
     }
 }
