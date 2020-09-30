@@ -239,7 +239,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         result.put("Result", DOUBLE_MEDIA);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
 
-        handler.handleCommand(thing.getChannel(CURRENTID).getUID(), StringType.valueOf("C11"));
+        handler.handleCommand(currentIdChannelUID, StringType.valueOf("C11"));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C11"));
@@ -280,14 +280,13 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         handler.config.browsedown = false;
         handler.config.searchfromroot = false;
 
-        handler.handleCommand(thing.getChannel(UPNPRENDERER).getUID(),
-                StringType.valueOf(rendererThing.getUID().toString()));
+        handler.handleCommand(rendererChannelUID, StringType.valueOf(rendererThing.getUID().toString()));
 
         Map<String, String> result = new HashMap<>();
         result.put("Result", DOUBLE_MEDIA);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
 
-        handler.handleCommand(thing.getChannel(CURRENTID).getUID(), StringType.valueOf("C11"));
+        handler.handleCommand(currentIdChannelUID, StringType.valueOf("C11"));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C11"));
@@ -333,7 +332,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         result.put("Result", DOUBLE_CONTAINER);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
 
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C1"));
@@ -381,7 +380,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         doReturn(resultContainer).doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"),
                 eq("Browse"), anyMap());
 
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C1"));
@@ -425,7 +424,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         doReturn(resultContainer).doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"),
                 eq("Browse"), anyMap());
 
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C11"));
@@ -470,7 +469,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         Map<String, String> result = new HashMap<>();
         result.put("Result", DOUBLE_CONTAINER);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         Map<String, String> resultContainer = new HashMap<>();
         resultContainer.put("Result", SINGLE_CONTAINER);
@@ -481,7 +480,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
 
         String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
-        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+        handler.handleCommand(searchChannelUID, StringType.valueOf(searchString));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C1"));
@@ -522,7 +521,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         Map<String, String> result = new HashMap<>();
         result.put("Result", DOUBLE_CONTAINER);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         Map<String, String> resultContainer = new HashMap<>();
         resultContainer.put("Result", SINGLE_CONTAINER);
@@ -533,7 +532,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
 
         String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
-        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+        handler.handleCommand(searchChannelUID, StringType.valueOf(searchString));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C11"));
@@ -578,7 +577,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         Map<String, String> result = new HashMap<>();
         result.put("Result", DOUBLE_CONTAINER);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         Map<String, String> resultContainer = new HashMap<>();
         resultContainer.put("Result", SINGLE_CONTAINER);
@@ -589,7 +588,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
 
         String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
-        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+        handler.handleCommand(searchChannelUID, StringType.valueOf(searchString));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("0"));
@@ -630,7 +629,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         Map<String, String> result = new HashMap<>();
         result.put("Result", DOUBLE_CONTAINER);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         Map<String, String> resultContainer = new HashMap<>();
         resultContainer.put("Result", SINGLE_CONTAINER);
@@ -641,7 +640,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
 
         String searchString = "dc:title contains \"Morning\" and upnp:class derivedfrom \"object.container\"";
-        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+        handler.handleCommand(searchChannelUID, StringType.valueOf(searchString));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C11"));
@@ -686,14 +685,14 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         Map<String, String> result = new HashMap<>();
         result.put("Result", DOUBLE_CONTAINER);
         doReturn(result).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap());
-        handler.handleCommand(thing.getChannel(BROWSE).getUID(), StringType.valueOf("C1"));
+        handler.handleCommand(browseChannelUID, StringType.valueOf("C1"));
 
         Map<String, String> resultMedia = new HashMap<>();
         resultMedia.put("Result", DOUBLE_MEDIA);
         doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"), anyMap());
 
         String searchString = "dc:title contains \"Music\"";
-        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+        handler.handleCommand(searchChannelUID, StringType.valueOf(searchString));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("0"));
@@ -742,11 +741,11 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         resultMedia.put("Result", DOUBLE_MEDIA);
         doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"), anyMap());
         String searchString = "dc:title contains \"Music\"";
-        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+        handler.handleCommand(searchChannelUID, StringType.valueOf(searchString));
 
         // Save playlist
-        handler.handleCommand(thing.getChannel(PLAYLIST).getUID(), StringType.valueOf("Test_Playlist"));
-        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("SAVE"));
+        handler.handleCommand(playlistChannelUID, StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(playlistActionChannelUID, StringType.valueOf("SAVE"));
 
         // Check called after saving playlist
         verify(handler, times(2)).playlistsListChanged();
@@ -760,18 +759,18 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is("Test_Playlist"));
 
         // Clear PLAYLIST channel
-        handler.handleCommand(thing.getChannel(PLAYLIST).getUID(), StringType.valueOf(""));
+        handler.handleCommand(playlistChannelUID, StringType.valueOf(""));
 
         // Search for some extra media
         resultMedia = new HashMap<>();
         resultMedia.put("Result", EXTRA_MEDIA);
         doReturn(resultMedia).when(upnpIOService).invokeAction(any(), eq("ContentDirectory"), eq("Search"), anyMap());
         searchString = "dc:title contains \"Extra\"";
-        handler.handleCommand(thing.getChannel(SEARCH).getUID(), StringType.valueOf(searchString));
+        handler.handleCommand(searchChannelUID, StringType.valueOf(searchString));
 
         // Append to playlist
-        handler.handleCommand(thing.getChannel(PLAYLIST_SELECT).getUID(), StringType.valueOf("Test_Playlist"));
-        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("APPEND"));
+        handler.handleCommand(playlistSelectChannelUID, StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(playlistActionChannelUID, StringType.valueOf("APPEND"));
 
         // Check called after appending to playlist
         verify(handler, times(3)).playlistsListChanged();
@@ -782,11 +781,11 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         assertThat(stringCaptor.getValue(), is(StringType.valueOf("Test_Playlist")));
 
         // Clear PLAYLIST channel
-        handler.handleCommand(thing.getChannel(PLAYLIST).getUID(), StringType.valueOf(""));
+        handler.handleCommand(playlistChannelUID, StringType.valueOf(""));
 
         // Restore playlist
-        handler.handleCommand(thing.getChannel(PLAYLIST_SELECT).getUID(), StringType.valueOf("Test_Playlist"));
-        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("RESTORE"));
+        handler.handleCommand(playlistSelectChannelUID, StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(playlistActionChannelUID, StringType.valueOf("RESTORE"));
 
         // Check currentEntry
         assertThat(handler.currentEntry.getId(), is("C11"));
@@ -801,8 +800,8 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         assertThat(handler.entries.get(2).getTitle(), is("Extra_01"));
 
         // Delete playlist
-        handler.handleCommand(thing.getChannel(PLAYLIST_SELECT).getUID(), StringType.valueOf("Test_Playlist"));
-        handler.handleCommand(thing.getChannel(PLAYLIST_ACTION).getUID(), StringType.valueOf("DELETE"));
+        handler.handleCommand(playlistSelectChannelUID, StringType.valueOf("Test_Playlist"));
+        handler.handleCommand(playlistActionChannelUID, StringType.valueOf("DELETE"));
 
         // Check called after deleting playlist
         verify(handler, times(4)).playlistsListChanged();
@@ -814,8 +813,7 @@ public class UpnpServerHandlerTest extends UpnpHandlerTest {
         assertThat(commandOptionListCaptor.getValue().size(), is(0));
 
         // select a renderer, so we expect the "current" playlist to be created
-        handler.handleCommand(thing.getChannel(UPNPRENDERER).getUID(),
-                StringType.valueOf(rendererThing.getUID().toString()));
+        handler.handleCommand(rendererChannelUID, StringType.valueOf(rendererThing.getUID().toString()));
 
         // Check called after selecting renderer
         verify(handler, times(5)).playlistsListChanged();

@@ -18,6 +18,8 @@ import static org.mockito.Mockito.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -43,7 +45,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Mark Herwege - Initial contribution
  */
-@SuppressWarnings({ "null", "unchecked" })
+@SuppressWarnings({ "null" })
 @NonNullByDefault
 public class UpnpHandlerTest {
 
@@ -100,6 +102,13 @@ public class UpnpHandlerTest {
 
         // stub upnpIOService methods for initialize
         when(upnpIOService.isRegistered(any())).thenReturn(true);
+
+        Map<String, String> result = new HashMap<>();
+        result.put("ConnectionID", "0");
+        result.put("AVTransportID", "0");
+        result.put("RcsID", "0");
+        when(upnpIOService.invokeAction(any(), eq("ConnectionManager"), eq("GetCurrentConnectionInfo"), anyMap()))
+                .thenReturn(result);
 
         // stub config for initialize
         when(config.as(UpnpControlConfiguration.class)).thenReturn(new UpnpControlConfiguration());

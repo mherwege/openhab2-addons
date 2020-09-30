@@ -139,7 +139,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                                       // command is given.
     volatile boolean playingQueue; // Identifies if we are playing a queue received from a server. If so, a new
                                    // queue received will be played after the currently playing entry.
-    volatile boolean oneplayed; // When playing one at a time, set to true when the one is being played
+    private volatile boolean oneplayed; // Set to true when the one entry is being played, allows to check if stop is
+                                        // needed when only playing one
 
     // Track position and duration fields
     private volatile int trackDuration = 0;
@@ -195,7 +196,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         resetPaused();
         CompletableFuture<Boolean> settingURI = isSettingURI;
         if (settingURI != null) {
-            settingURI.complete(false); // We have received current URI, so can allow play to start
+            settingURI.complete(false);
         }
 
         super.dispose();
@@ -762,6 +763,11 @@ public class UpnpRendererHandler extends UpnpHandler {
             oneplayed = (onlyplayone && playing) ? true : false;
             if (oneplayed) {
                 setNextURI("", "");
+            } else {
+                UpnpEntry next = nextEntry;
+                if (next != null) {
+                    setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
+                }
             }
             updateState(channelUID, OnOffType.from(onlyplayone));
             logger.debug("OnlyPlayOne set to {} for {}", onlyplayone, thing.getLabel());
@@ -1059,6 +1065,8 @@ public class UpnpRendererHandler extends UpnpHandler {
             // Only go to next for first STOP command, then wait until we received PLAYING before moving
             // to next (avoids issues with renderers sending multiple stop states)
             if (playing) {
+                playing = false;
+
                 // playerStopped is true if stop came from openHAB. This allows us to identify if we played to the
                 // end of an entry, because STOP would come from the player and not from openHAB. We should then
                 // move to the next entry if the queue is not at the end already.
@@ -1075,7 +1083,6 @@ public class UpnpRendererHandler extends UpnpHandler {
                     playingQueue = false;
                 }
             }
-            playing = false;
         } else if ("PLAYING".equals(value)) {
             playerStopped = false;
             playing = true;
@@ -1255,6 +1262,11 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param queue
      */
     protected void registerQueue(UpnpEntryQueue queue) {
+        if (currentQueue.equals(queue)) {
+            // We get the same queue, so do nothing
+            return;
+        }
+
         logger.debug("Registering queue on renderer {}", thing.getLabel());
         logger.trace("Renderer settings: repeat {}, shuffle {}, onlyplayone {}", repeat, shuffle, onlyplayone);
         logger.trace("Renderer state: {}, nowPlayingUri {}", transportState, nowPlayingUri);
@@ -1268,7 +1280,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (playingQueue) {
             nextEntry = currentQueue.get(currentQueue.nextIndex());
             UpnpEntry next = nextEntry;
-            if (next != null) {
+            if ((next != null) && !onlyplayone) {
                 // make the next entry available to renderers that support it
                 logger.trace("Renderer {} still playing, set new queue as next entry", thing.getLabel());
                 setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
@@ -1377,16 +1389,16 @@ public class UpnpRendererHandler extends UpnpHandler {
                 expectedTrackend = 0;
                 play();
 
-                // make the next entry available to renderers that support it
-                if (!onlyplayone) {
-                    UpnpEntry next = nextEntry;
-                    if (next != null) {
-                        setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
-                    }
-                }
-
                 oneplayed = true;
                 playingQueue = true;
+            }
+
+            // make the next entry available to renderers that support it
+            if (!onlyplayone) {
+                UpnpEntry next = nextEntry;
+                if (next != null) {
+                    setNextURI(next.getRes(), UpnpXMLParser.compileMetadataString(next));
+                }
             }
         }
     }

@@ -14,27 +14,36 @@ package org.openhab.binding.upnpcontrol.internal.handler;
 
 import static org.eclipse.jdt.annotation.Checks.requireNonNull;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.initMocks;
 import static org.openhab.binding.upnpcontrol.internal.UpnpControlBindingConstants.*;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.eclipse.smarthome.core.library.types.DecimalType;
+import org.eclipse.smarthome.core.library.types.NextPreviousType;
+import org.eclipse.smarthome.core.library.types.OnOffType;
+import org.eclipse.smarthome.core.library.types.PlayPauseType;
+import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.builder.ChannelBuilder;
+import org.eclipse.smarthome.core.types.Command;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
@@ -50,7 +59,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Mark Herwege - Initial contribution
  */
-@SuppressWarnings({ "null", "unchecked" })
+@SuppressWarnings({ "null" })
 @NonNullByDefault
 public class UpnpRendererHandlerTest extends UpnpHandlerTest {
 
@@ -58,6 +67,16 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
 
     private static final String THING_TYPE_UID = "upnpcontrol:upnprenderer";
     private static final String THING_UID = THING_TYPE_UID + ":mockrenderer";
+
+    private static final String LAST_CHANGE_HEADER = "<Event xmlns=\"urn:schemas-upnp-org:metadata-1-0/AVT/\">"
+            + "<InstanceID val=\"0\">";
+    private static final String LAST_CHANGE_FOOTER = "</InstanceID></Event>";
+    private static final String AV_TRANSPORT_URI = "<AVTransportURI val=\"";
+    private static final String AV_TRANSPORT_URI_METADATA = "<AVTransportURIMetaData val=\"";
+    private static final String CURRENT_TRACK_URI = "<CurrentTrackURI val=\"";
+    private static final String CURRENT_TRACK_METADATA = "<CurrentTrackMetaData val=\"";
+    private static final String TRANSPORT_STATE = "<TransportState val=\"";
+    private static final String CLOSE = "\"/>";
 
     protected @Nullable UpnpRendererHandler handler;
 
@@ -147,11 +166,6 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         when(thing.getLabel()).thenReturn("MockRenderer");
         when(thing.getStatus()).thenReturn(ThingStatus.OFFLINE);
 
-        // stub upnpIOService methods for initialize
-        Map<String, String> result = new HashMap<>();
-        result.put("Result", "");
-        when(upnpIOService.invokeAction(any(), eq("ContentDirectory"), eq("Browse"), anyMap())).thenReturn(result);
-
         // stub channels
         when(thing.getChannel(VOLUME)).thenReturn(volumeChannel);
         when(thing.getChannel(MUTE)).thenReturn(muteChannel);
@@ -181,34 +195,7 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         when(config.as(UpnpControlRendererConfiguration.class)).thenReturn(new UpnpControlRendererConfiguration());
 
         // create a media queue for playing
-        List<UpnpEntry> entries = new ArrayList<>();
-        UpnpEntry entry;
-        List<UpnpEntryRes> resList;
-        UpnpEntryRes res;
-        resList = new ArrayList<>();
-        res = new UpnpEntryRes("http-get:*:audio/mpeg:*", 8054458L, "10", "http://MediaServerContent_0/1/M1/");
-        res.setRes("http://MediaServerContent_0/1/M1/Test_1.mp3");
-        resList.add(res);
-        entry = new UpnpEntry("M1", "M1", "C11", "object.item.audioItem").withTitle("Music_01").withResList(resList)
-                .withAlbum("My Music 1").withCreator("Creator_1").withArtist("Artist_1").withGenre("Morning")
-                .withPublisher("myself 1").withAlbumArtUri("").withTrackNumber(1);
-        entries.add(entry);
-        resList = new ArrayList<>();
-        res = new UpnpEntryRes("http-get:*:audio/wav:*", 1156598L, "6", "http://MediaServerContent_0/1/M2/");
-        res.setRes("http://MediaServerContent_0/1/M2/Test_2.wav");
-        resList.add(res);
-        entry = new UpnpEntry("M2", "M2", "C11", "object.item.audioItem").withTitle("Music_02").withResList(resList)
-                .withAlbum("My Music 1").withCreator("Creator_2").withArtist("Artist_2").withGenre("Morning")
-                .withPublisher("myself 2").withAlbumArtUri("").withTrackNumber(2);
-        entries.add(entry);
-        resList = new ArrayList<>();
-        res = new UpnpEntryRes("http-get:*:audio/mpeg:*", 1156598L, "4", "http://MediaServerContent_0/1/M3/");
-        res.setRes("http://MediaServerContent_0/1/M3/Test_3.mp3");
-        resList.add(res);
-        entry = new UpnpEntry("M3", "M3", "C12", "object.item.audioItem").withTitle("Music_03").withResList(resList)
-                .withAlbum("My Music 2").withCreator("Creator_3").withArtist("Artist_3").withGenre("Evening")
-                .withPublisher("myself 3").withAlbumArtUri("").withTrackNumber(1);
-        entries.add(entry);
+        List<UpnpEntry> entries = createUpnpEntries();
         upnpEntryQueue = new UpnpEntryQueue(entries, "54321");
 
         handler = spy(new UpnpRendererHandler(requireNonNull(thing), requireNonNull(upnpIOService),
@@ -218,6 +205,42 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         initHandler(requireNonNull(handler));
 
         handler.initialize();
+
+        expectLastChangeOnStop(true);
+        expectLastChangeOnPlay(true);
+        expectLastChangeOnPause(true);
+    }
+
+    private List<UpnpEntry> createUpnpEntries() {
+        List<UpnpEntry> entries = new ArrayList<>();
+        UpnpEntry entry;
+        List<UpnpEntryRes> resList;
+        UpnpEntryRes res;
+        resList = new ArrayList<>();
+        res = new UpnpEntryRes("http-get:*:audio/mpeg:*", 8054458L, "10", "http://MediaServerContent_0/1/M0/");
+        res.setRes("http://MediaServerContent_0/1/M0/Test_0.mp3");
+        resList.add(res);
+        entry = new UpnpEntry("M0", "M0", "C11", "object.item.audioItem").withTitle("Music_00").withResList(resList)
+                .withAlbum("My Music 0").withCreator("Creator_0").withArtist("Artist_0").withGenre("Morning")
+                .withPublisher("myself 0").withAlbumArtUri("").withTrackNumber(1);
+        entries.add(entry);
+        resList = new ArrayList<>();
+        res = new UpnpEntryRes("http-get:*:audio/wav:*", 1156598L, "6", "http://MediaServerContent_0/1/M1/");
+        res.setRes("http://MediaServerContent_0/1/M1/Test_1.wav");
+        resList.add(res);
+        entry = new UpnpEntry("M1", "M1", "C11", "object.item.audioItem").withTitle("Music_01").withResList(resList)
+                .withAlbum("My Music 0").withCreator("Creator_1").withArtist("Artist_1").withGenre("Morning")
+                .withPublisher("myself 1").withAlbumArtUri("").withTrackNumber(2);
+        entries.add(entry);
+        resList = new ArrayList<>();
+        res = new UpnpEntryRes("http-get:*:audio/mpeg:*", 1156598L, "4", "http://MediaServerContent_0/1/M2/");
+        res.setRes("http://MediaServerContent_0/1/M2/Test_2.mp3");
+        resList.add(res);
+        entry = new UpnpEntry("M2", "M2", "C12", "object.item.audioItem").withTitle("Music_02").withResList(resList)
+                .withAlbum("My Music 2").withCreator("Creator_2").withArtist("Artist_2").withGenre("Evening")
+                .withPublisher("myself 2").withAlbumArtUri("").withTrackNumber(1);
+        entries.add(entry);
+        return entries;
     }
 
     @Override
@@ -229,25 +252,498 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
     }
 
     @Test
-    public void testBase() {
-        logger.info("testBase");
+    public void testRegisterQueue() {
+        logger.info("testRegisterQueue");
 
         // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
         handler.registerQueue(requireNonNull(upnpEntryQueue));
 
-        // Check internal player state
-        assertThat(handler.currentEntry, is(upnpEntryQueue.get(0)));
-        assertThat(handler.nextEntry, is(upnpEntryQueue.get(1)));
-        assertThat(handler.playerStopped, is(true));
-        assertThat(handler.playing, is(false));
-        assertThat(handler.registeredQueue, is(true));
-        assertThat(handler.playingQueue, is(false));
-        assertThat(handler.oneplayed, is(false));
+        checkInternalState(0, 1, true, false, true, false);
+        checkControlChannel(PlayPauseType.PAUSE);
+        checkSetURI(0, 1);
+        checkMetadataChannels(0);
+    }
 
-        // Check that currentURI and nextURI are being set
-        verify(handler).setCurrentURI(upnpEntryQueue.get(0).getRes(),
-                UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(0))));
-        verify(handler).setNextURI(upnpEntryQueue.get(1).getRes(),
-                UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(1))));
+    @Test
+    public void testPlayQueue() {
+        logger.info("testPlayQueue");
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        checkInternalState(0, 1, false, true, false, true);
+        checkControlChannel(PlayPauseType.PLAY);
+        checkSetURI(0, 1);
+        checkMetadataChannels(0);
+    }
+
+    @Test
+    public void testStop() {
+        logger.info("testStop");
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        // Stop playback
+        handler.handleCommand(stopChannelUID, OnOffType.ON);
+
+        checkInternalState(0, 1, true, false, false, false);
+        checkControlChannel(PlayPauseType.PAUSE);
+        checkSetURI(0, 1);
+        checkMetadataChannels(0);
+    }
+
+    @Test
+    public void testPause() {
+        logger.info("testPause");
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        // Pause media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PAUSE);
+
+        checkControlChannel(PlayPauseType.PAUSE);
+
+        // Continue playing
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        checkControlChannel(PlayPauseType.PLAY);
+    }
+
+    @Test
+    public void testPauseNotSupported() {
+        logger.info("testPauseNotSupported");
+
+        // Some players don't support pause and just continue playing.
+        // Test if we properly switch back to playing state if no confirmation of pause received.
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        // Pause media
+        // Do not receive a PAUSED_PLAYBACK response
+        expectLastChangeOnPause(false);
+        handler.handleCommand(controlChannelUID, PlayPauseType.PAUSE);
+
+        // Wait long enough for status to turn back to PLAYING
+        try {
+            TimeUnit.MILLISECONDS.sleep(UpnpHandler.UPNP_RESPONSE_TIMEOUT_MILLIS);
+        } catch (InterruptedException ignore) {
+        }
+
+        checkControlChannel(PlayPauseType.PLAY);
+    }
+
+    @Test
+    public void testRegisterQueueWhilePlaying() {
+        logger.info("testRegisterQueueWhilePlaying");
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 2);
+        List<UpnpEntry> startList = new ArrayList<UpnpEntry>();
+        startList.add(requireNonNull(upnpEntryQueue.get(2)));
+        UpnpEntryQueue startQueue = new UpnpEntryQueue(startList, "54321");
+        handler.registerQueue(requireNonNull(startQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        // Register a new media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        checkInternalState(2, 0, false, true, true, true);
+        checkControlChannel(PlayPauseType.PLAY);
+        checkSetURI(null, 0);
+        checkMetadataChannels(2);
+    }
+
+    @Test
+    public void testNext() {
+        logger.info("testNext");
+
+        testNext(false, false);
+    }
+
+    @Test
+    public void testNextRepeat() {
+        logger.info("testNextRepeat");
+
+        testNext(false, true);
+    }
+
+    @Test
+    public void testNextWhilePlaying() {
+        logger.info("testNextWhilePlaying");
+
+        testNext(true, false);
+    }
+
+    @Test
+    public void testNextWhilePlayingRepeat() {
+        logger.info("testNextWhilePlayingRepeat");
+
+        testNext(true, true);
+    }
+
+    private void testNext(boolean play, boolean repeat) {
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        if (repeat) {
+            handler.handleCommand(repeatChannelUID, OnOffType.ON);
+        }
+
+        if (play) {
+            // Play media
+            handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+        }
+
+        // Next media
+        expectLastChangeOnSetAVTransportURI(true, 1);
+        handler.handleCommand(controlChannelUID, NextPreviousType.NEXT);
+
+        checkInternalState(1, 2, play ? false : true, play ? true : false, play ? false : true, play ? true : false);
+        checkControlChannel(play ? PlayPauseType.PLAY : PlayPauseType.PAUSE);
+        checkSetURI(1, 2);
+        checkMetadataChannels(1);
+
+        // Next media
+        expectLastChangeOnSetAVTransportURI(true, 2);
+        handler.handleCommand(controlChannelUID, NextPreviousType.NEXT);
+
+        checkInternalState(2, repeat ? 0 : null, play ? false : true, play ? true : false, play ? false : true,
+                play ? true : false);
+        checkControlChannel(play ? PlayPauseType.PLAY : PlayPauseType.PAUSE);
+        checkSetURI(2, repeat ? 0 : null);
+        checkMetadataChannels(2);
+
+        // Next media
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.handleCommand(controlChannelUID, NextPreviousType.NEXT);
+
+        checkInternalState(0, 1, (play && repeat) ? false : true, (play && repeat) ? true : false,
+                (play && repeat) ? false : true, (play && repeat) ? true : false);
+        checkControlChannel((play && repeat) ? PlayPauseType.PLAY : PlayPauseType.PAUSE);
+        checkSetURI(0, 1);
+        checkMetadataChannels(0);
+    }
+
+    @Test
+    public void testPrevious() {
+        logger.info("testPrevious");
+
+        testPrevious(false, false);
+    }
+
+    @Test
+    public void testPreviousRepeat() {
+        logger.info("testPreviousRepeat");
+
+        testPrevious(false, true);
+    }
+
+    @Test
+    public void testPreviousWhilePlaying() {
+        logger.info("testPreviousWhilePlaying");
+
+        testPrevious(true, false);
+    }
+
+    @Test
+    public void testPreviousWhilePlayingRepeat() {
+        logger.info("testPreviousWhilePlayingRepeat");
+
+        testPrevious(true, true);
+    }
+
+    public void testPrevious(boolean play, boolean repeat) {
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        if (repeat) {
+            handler.handleCommand(repeatChannelUID, OnOffType.ON);
+        }
+
+        if (play) {
+            // Play media
+            handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+        }
+
+        // Next media
+        expectLastChangeOnSetAVTransportURI(true, 1);
+        handler.handleCommand(controlChannelUID, NextPreviousType.NEXT);
+
+        // Previous media
+        expectLastChangeOnSetAVTransportURI(true, 2);
+        handler.handleCommand(controlChannelUID, NextPreviousType.PREVIOUS);
+
+        checkInternalState(0, 1, play ? false : true, play ? true : false, play ? false : true, play ? true : false);
+        checkControlChannel(play ? PlayPauseType.PLAY : PlayPauseType.PAUSE);
+        checkSetURI(0, 1);
+        checkMetadataChannels(0);
+
+        // Previous media
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.handleCommand(controlChannelUID, NextPreviousType.PREVIOUS);
+
+        checkInternalState(repeat ? 2 : 0, repeat ? 0 : 1, (play && repeat) ? false : true,
+                (play && repeat) ? true : false, (play && repeat) ? false : true, (play && repeat) ? true : false);
+        checkControlChannel((play && repeat) ? PlayPauseType.PLAY : PlayPauseType.PAUSE);
+        checkSetURI(repeat ? 2 : 0, repeat ? 0 : 1);
+        checkMetadataChannels(repeat ? 2 : 0);
+    }
+
+    @Test
+    public void testAutoPlayNextInQueue() {
+        logger.info("testAutoPlayNextInQueue");
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        // We expect GENA LastChange event with new metadata when the renderer starts to play next entry
+        expectLastChangeOnSetAVTransportURI(true, 1);
+
+        // At the end of the media, we will get GENA LastChange STOP event, renderer should move to next media and play
+        // Force this STOP event for test
+        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "STOPPED" + CLOSE + LAST_CHANGE_FOOTER;
+        handler.onValueReceived("LastChange", lastChange, "AVTransport");
+
+        checkInternalState(1, 2, false, true, false, true);
+        checkControlChannel(PlayPauseType.PLAY);
+        checkSetURI(1, 2);
+        checkMetadataChannels(1);
+    }
+
+    @Test
+    public void testAutoPlayNextInQueueGapless() {
+        logger.info("testAutoPlayNextInQueueGapless");
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        // We expect GENA LastChange event with new metadata when the renderer starts to play next entry
+        expectLastChangeOnSetAVTransportURI(true, 1);
+
+        // At the end of the media, we will get GENA event with new URI and metadata
+        String lastChange = LAST_CHANGE_HEADER + AV_TRANSPORT_URI + upnpEntryQueue.get(1).getRes() + CLOSE
+                + AV_TRANSPORT_URI_METADATA + UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(0)))
+                + CLOSE + CURRENT_TRACK_URI + upnpEntryQueue.get(1).getRes() + CLOSE + CURRENT_TRACK_METADATA
+                + UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(1))) + CLOSE
+                + LAST_CHANGE_FOOTER;
+        handler.onValueReceived("LastChange", lastChange, "AVTransport");
+
+        checkInternalState(1, 2, false, true, false, true);
+        checkControlChannel(PlayPauseType.PLAY);
+        checkSetURI(null, 2);
+        checkMetadataChannels(1);
+    }
+
+    @Test
+    public void testOnlyPlayOne() {
+        logger.info("testOnlyPlayOne");
+
+        handler.handleCommand(onlyPlayOneChannelUID, OnOffType.ON);
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        checkInternalState(0, 1, false, true, false, true);
+        checkSetURI(0, null);
+        checkMetadataChannels(0);
+
+        // We expect GENA LastChange event with new metadata when the renderer has finished playing
+        expectLastChangeOnSetAVTransportURI(true, 1);
+
+        // At the end of the media, we will get GENA LastChange STOP event, renderer should stop
+        // Force this STOP event for test
+        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "STOPPED" + CLOSE + LAST_CHANGE_FOOTER;
+        handler.onValueReceived("LastChange", lastChange, "AVTransport");
+
+        checkInternalState(1, 2, false, false, false, true);
+        checkControlChannel(PlayPauseType.PAUSE);
+        checkSetURI(1, null);
+        checkMetadataChannels(1);
+    }
+
+    @Test
+    public void testPlayUri() {
+        logger.info("testPlayUri");
+
+        handler.handleCommand(uriChannelUID, StringType.valueOf(upnpEntryQueue.get(0).getRes()));
+
+        // Play media
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        checkInternalState(null, null, false, true, false, false);
+        checkControlChannel(PlayPauseType.PLAY);
+        checkSetURI(0, null, false);
+    }
+
+    @Test
+    public void testPlayAction() {
+        logger.info("testPlayAction");
+
+        // Methods called in sequence by audio sink
+        handler.setCurrentURI(upnpEntryQueue.get(0).getRes(), "");
+        handler.play();
+
+        checkInternalState(null, null, false, true, false, false);
+        checkControlChannel(PlayPauseType.PLAY);
+        checkSetURI(0, null, false);
+    }
+
+    private void expectLastChangeOnStop(boolean respond) {
+        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "STOPPED" + CLOSE + LAST_CHANGE_FOOTER;
+        doAnswer(invocation -> {
+            if (respond) {
+                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+            }
+            return Collections.emptyMap();
+        }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("Stop"), anyMap());
+    }
+
+    private void expectLastChangeOnPlay(boolean respond) {
+        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "PLAYING" + CLOSE + LAST_CHANGE_FOOTER;
+        doAnswer(invocation -> {
+            if (respond) {
+                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+            }
+            return Collections.emptyMap();
+        }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("Play"), anyMap());
+    }
+
+    private void expectLastChangeOnPause(boolean respond) {
+        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "PAUSED_PLAYBACK" + CLOSE + LAST_CHANGE_FOOTER;
+        doAnswer(invocation -> {
+            if (respond) {
+                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+            }
+            return Collections.emptyMap();
+        }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("Pause"), anyMap());
+    }
+
+    private void expectLastChangeOnSetAVTransportURI(boolean respond, int mediaId) {
+        String uri = upnpEntryQueue.get(mediaId).getRes();
+        String metadata = UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(mediaId)));
+        Map<String, String> inputs = new HashMap<>();
+        inputs.put("InstanceID", "0");
+        inputs.put("CurrentURI", uri);
+        inputs.put("CurrentURIMetaData", metadata);
+        String lastChange = LAST_CHANGE_HEADER + AV_TRANSPORT_URI + uri + CLOSE + AV_TRANSPORT_URI_METADATA + metadata
+                + CLOSE + CURRENT_TRACK_URI + uri + CLOSE + CURRENT_TRACK_METADATA + metadata + CLOSE
+                + LAST_CHANGE_FOOTER;
+        doAnswer(invocation -> {
+            if (respond) {
+                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+            }
+            return Collections.emptyMap();
+        }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("SetAVTransportURI"), eq(inputs));
+    }
+
+    private void checkInternalState(@Nullable Integer currentEntry, @Nullable Integer nextEntry, boolean playerStopped,
+            boolean playing, boolean registeredQueue, boolean playingQueue) {
+        if (currentEntry == null) {
+            assertNull(handler.currentEntry);
+        } else {
+            assertThat(handler.currentEntry, is(upnpEntryQueue.get(currentEntry)));
+        }
+        if (nextEntry == null) {
+            assertNull(handler.nextEntry);
+        } else {
+            assertThat(handler.nextEntry, is(upnpEntryQueue.get(nextEntry)));
+        }
+        assertThat(handler.playerStopped, is(playerStopped));
+        assertThat(handler.playing, is(playing));
+        assertThat(handler.registeredQueue, is(registeredQueue));
+        assertThat(handler.playingQueue, is(playingQueue));
+    }
+
+    private void checkControlChannel(Command command) {
+        ArgumentCaptor<PlayPauseType> captor = ArgumentCaptor.forClass(PlayPauseType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CONTROL).getUID()), captor.capture());
+        assertThat(captor.getValue(), is(command));
+    }
+
+    private void checkSetURI(@Nullable Integer current, @Nullable Integer next) {
+        checkSetURI(current, next, true);
+    }
+
+    private void checkSetURI(@Nullable Integer current, @Nullable Integer next, boolean withMetadata) {
+        ArgumentCaptor<String> uriCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> metadataCaptor = ArgumentCaptor.forClass(String.class);
+        if (current != null) {
+            verify(handler, atLeastOnce()).setCurrentURI(uriCaptor.capture(), metadataCaptor.capture());
+            assertThat(uriCaptor.getValue(), is(upnpEntryQueue.get(current).getRes()));
+            if (withMetadata) {
+                assertThat(metadataCaptor.getValue(),
+                        is(UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(current)))));
+            }
+        }
+        if (next != null) {
+            verify(handler, atLeastOnce()).setNextURI(uriCaptor.capture(), metadataCaptor.capture());
+            assertThat(uriCaptor.getValue(), is(upnpEntryQueue.get(next).getRes()));
+            if (withMetadata) {
+                assertThat(metadataCaptor.getValue(),
+                        is(UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(next)))));
+            }
+        }
+    }
+
+    private void checkMetadataChannels(int mediaId) {
+        ArgumentCaptor<StringType> stringTypeCaptor = ArgumentCaptor.forClass(StringType.class);
+        ArgumentCaptor<DecimalType> decimalTypeCaptor = ArgumentCaptor.forClass(DecimalType.class);
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(URI).getUID()), stringTypeCaptor.capture());
+        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getRes())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(TITLE).getUID()), stringTypeCaptor.capture());
+        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getTitle())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(ALBUM).getUID()), stringTypeCaptor.capture());
+        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getAlbum())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CREATOR).getUID()),
+                stringTypeCaptor.capture());
+        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getCreator())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(ARTIST).getUID()), stringTypeCaptor.capture());
+        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getArtist())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(PUBLISHER).getUID()),
+                stringTypeCaptor.capture());
+        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getPublisher())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(GENRE).getUID()), stringTypeCaptor.capture());
+        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getGenre())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(TRACK_NUMBER).getUID()),
+                decimalTypeCaptor.capture());
+        assertThat(decimalTypeCaptor.getValue(),
+                is(new DecimalType(upnpEntryQueue.get(mediaId).getOriginalTrackNumber())));
     }
 }
