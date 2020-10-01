@@ -118,6 +118,9 @@ public class UpnpHandlerTest {
         handler.setCallback(callback);
         handler.upnpScheduler = requireNonNull(scheduler);
 
+        // No timeouts for responses, as we don't actually communicate with an UPnP device
+        handler.config.responsetimeout = 0;
+
         doReturn("12345").when(handler).getUDN();
     }
 

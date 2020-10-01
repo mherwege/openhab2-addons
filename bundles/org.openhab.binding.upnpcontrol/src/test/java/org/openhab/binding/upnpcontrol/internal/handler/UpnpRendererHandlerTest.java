@@ -40,6 +40,9 @@ import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.builder.ChannelBuilder;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.CommandOption;
+import org.eclipse.smarthome.core.types.State;
+import org.eclipse.smarthome.core.types.UnDefType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -59,7 +62,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Mark Herwege - Initial contribution
  */
-@SuppressWarnings({ "null" })
+@SuppressWarnings({ "null", "unchecked" })
 @NonNullByDefault
 public class UpnpRendererHandlerTest extends UpnpHandlerTest {
 
@@ -343,9 +346,10 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         expectLastChangeOnPause(false);
         handler.handleCommand(controlChannelUID, PlayPauseType.PAUSE);
 
-        // Wait long enough for status to turn back to PLAYING
+        // Wait long enough for status to turn back to PLAYING.
+        // In the test, we have put this timeout to 0.
         try {
-            TimeUnit.MILLISECONDS.sleep(UpnpHandler.UPNP_RESPONSE_TIMEOUT_MILLIS);
+            TimeUnit.MILLISECONDS.sleep(handler.config.responsetimeout);
         } catch (InterruptedException ignore) {
         }
 
@@ -602,6 +606,7 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
     public void testPlayUri() {
         logger.info("testPlayUri");
 
+        expectLastChangeOnSetAVTransportURI(true, false, 0);
         handler.handleCommand(uriChannelUID, StringType.valueOf(upnpEntryQueue.get(0).getRes()));
 
         // Play media
@@ -610,11 +615,14 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         checkInternalState(null, null, false, true, false, false);
         checkControlChannel(PlayPauseType.PLAY);
         checkSetURI(0, null, false);
+        checkMetadataChannels(0, true);
     }
 
     @Test
     public void testPlayAction() {
         logger.info("testPlayAction");
+
+        expectLastChangeOnSetAVTransportURI(true, false, 0);
 
         // Methods called in sequence by audio sink
         handler.setCurrentURI(upnpEntryQueue.get(0).getRes(), "");
@@ -623,6 +631,67 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         checkInternalState(null, null, false, true, false, false);
         checkControlChannel(PlayPauseType.PLAY);
         checkSetURI(0, null, false);
+        checkMetadataChannels(0, true);
+    }
+
+    @Test
+    public void testFavorite() {
+        logger.info("testFavorite");
+
+        // Check already called in initialize
+        verify(handler).updateFavoritesList();
+
+        // First set URI
+        expectLastChangeOnSetAVTransportURI(true, false, 0);
+        handler.handleCommand(uriChannelUID, StringType.valueOf(upnpEntryQueue.get(0).getRes()));
+
+        // Save favorite
+        handler.handleCommand(favoriteChannelUID, StringType.valueOf("Test_Favorite"));
+        handler.handleCommand(favoriteActionChannelUID, StringType.valueOf("SAVE"));
+
+        // Check called after saving favorite
+        verify(handler, times(2)).updateFavoritesList();
+
+        // Check that FAVORITE_SELECT channel now has the favorite as a state option
+        ArgumentCaptor<List<CommandOption>> commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(FAVORITE_SELECT).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(1));
+        assertThat(commandOptionListCaptor.getValue().get(0).getCommand(), is("Test_Favorite"));
+        assertThat(commandOptionListCaptor.getValue().get(0).getLabel(), is("Test_Favorite"));
+
+        // Clear FAVORITE channel
+        handler.handleCommand(favoriteChannelUID, StringType.valueOf(""));
+
+        // Set another URI
+        expectLastChangeOnSetAVTransportURI(true, false, 2);
+        handler.handleCommand(uriChannelUID, StringType.valueOf(upnpEntryQueue.get(2).getRes()));
+
+        checkInternalState(null, null, false, true, false, false);
+        checkSetURI(2, null, false);
+        checkMetadataChannels(2, true);
+
+        // Restore favorite
+        expectLastChangeOnSetAVTransportURI(true, false, 0);
+        handler.handleCommand(favoriteSelectChannelUID, StringType.valueOf("Test_Favorite"));
+
+        checkInternalState(null, null, false, true, false, false);
+        checkControlChannel(PlayPauseType.PLAY);
+        checkSetURI(0, null, false);
+        checkMetadataChannels(0, true);
+
+        // Delete favorite
+        handler.handleCommand(favoriteSelectChannelUID, StringType.valueOf("Test_Favorite"));
+        handler.handleCommand(favoriteActionChannelUID, StringType.valueOf("DELETE"));
+
+        // Check called after deleting favorite
+        verify(handler, times(3)).updateFavoritesList();
+
+        // Check that FAVORITE_SELECT channel option list is empty again
+        commandOptionListCaptor = ArgumentCaptor.forClass(List.class);
+        verify(handler, atLeastOnce()).updateCommandDescription(eq(thing.getChannel(FAVORITE_SELECT).getUID()),
+                commandOptionListCaptor.capture());
+        assertThat(commandOptionListCaptor.getValue().size(), is(0));
     }
 
     private void expectLastChangeOnStop(boolean respond) {
@@ -656,12 +725,16 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
     }
 
     private void expectLastChangeOnSetAVTransportURI(boolean respond, int mediaId) {
+        expectLastChangeOnSetAVTransportURI(respond, true, mediaId);
+    }
+
+    private void expectLastChangeOnSetAVTransportURI(boolean respond, boolean withMetadata, int mediaId) {
         String uri = upnpEntryQueue.get(mediaId).getRes();
         String metadata = UpnpXMLParser.compileMetadataString(requireNonNull(upnpEntryQueue.get(mediaId)));
         Map<String, String> inputs = new HashMap<>();
         inputs.put("InstanceID", "0");
         inputs.put("CurrentURI", uri);
-        inputs.put("CurrentURIMetaData", metadata);
+        inputs.put("CurrentURIMetaData", withMetadata ? metadata : "");
         String lastChange = LAST_CHANGE_HEADER + AV_TRANSPORT_URI + uri + CLOSE + AV_TRANSPORT_URI_METADATA + metadata
                 + CLOSE + CURRENT_TRACK_URI + uri + CLOSE + CURRENT_TRACK_METADATA + metadata + CLOSE
                 + LAST_CHANGE_FOOTER;
@@ -723,27 +796,37 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
     }
 
     private void checkMetadataChannels(int mediaId) {
-        ArgumentCaptor<StringType> stringTypeCaptor = ArgumentCaptor.forClass(StringType.class);
-        ArgumentCaptor<DecimalType> decimalTypeCaptor = ArgumentCaptor.forClass(DecimalType.class);
-        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(URI).getUID()), stringTypeCaptor.capture());
-        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getRes())));
-        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(TITLE).getUID()), stringTypeCaptor.capture());
-        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getTitle())));
-        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(ALBUM).getUID()), stringTypeCaptor.capture());
-        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getAlbum())));
-        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CREATOR).getUID()),
-                stringTypeCaptor.capture());
-        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getCreator())));
-        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(ARTIST).getUID()), stringTypeCaptor.capture());
-        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getArtist())));
-        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(PUBLISHER).getUID()),
-                stringTypeCaptor.capture());
-        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getPublisher())));
-        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(GENRE).getUID()), stringTypeCaptor.capture());
-        assertThat(stringTypeCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getGenre())));
+        checkMetadataChannels(mediaId, false);
+    }
+
+    private void checkMetadataChannels(int mediaId, boolean cleared) {
+        ArgumentCaptor<State> stateCaptor = ArgumentCaptor.forClass(State.class);
+
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(URI).getUID()), stateCaptor.capture());
+        assertThat(stateCaptor.getValue(), is(StringType.valueOf(upnpEntryQueue.get(mediaId).getRes())));
+
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(TITLE).getUID()), stateCaptor.capture());
+        assertThat(stateCaptor.getValue(),
+                is(cleared ? UnDefType.UNDEF : StringType.valueOf(upnpEntryQueue.get(mediaId).getTitle())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(ALBUM).getUID()), stateCaptor.capture());
+        assertThat(stateCaptor.getValue(),
+                is(cleared ? UnDefType.UNDEF : StringType.valueOf(upnpEntryQueue.get(mediaId).getAlbum())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(CREATOR).getUID()), stateCaptor.capture());
+        assertThat(stateCaptor.getValue(),
+                is(cleared ? UnDefType.UNDEF : StringType.valueOf(upnpEntryQueue.get(mediaId).getCreator())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(ARTIST).getUID()), stateCaptor.capture());
+        assertThat(stateCaptor.getValue(),
+                is(cleared ? UnDefType.UNDEF : StringType.valueOf(upnpEntryQueue.get(mediaId).getArtist())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(PUBLISHER).getUID()), stateCaptor.capture());
+        assertThat(stateCaptor.getValue(),
+                is(cleared ? UnDefType.UNDEF : StringType.valueOf(upnpEntryQueue.get(mediaId).getPublisher())));
+        verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(GENRE).getUID()), stateCaptor.capture());
+        assertThat(stateCaptor.getValue(),
+                is(cleared ? UnDefType.UNDEF : StringType.valueOf(upnpEntryQueue.get(mediaId).getGenre())));
         verify(callback, atLeastOnce()).stateUpdated(eq(thing.getChannel(TRACK_NUMBER).getUID()),
-                decimalTypeCaptor.capture());
-        assertThat(decimalTypeCaptor.getValue(),
-                is(new DecimalType(upnpEntryQueue.get(mediaId).getOriginalTrackNumber())));
+                stateCaptor.capture());
+        assertThat(stateCaptor.getValue(),
+                is(cleared ? UnDefType.UNDEF : new DecimalType(upnpEntryQueue.get(mediaId).getOriginalTrackNumber())));
+        is(new DecimalType(upnpEntryQueue.get(mediaId).getOriginalTrackNumber()));
     }
 }
