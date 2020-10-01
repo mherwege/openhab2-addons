@@ -96,7 +96,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected volatile int rcsId = 0; // UPnP Rendering Control Id
 
     protected UpnpControlBindingConfiguration bindingConfig;
-    protected @NonNullByDefault({}) UpnpControlConfiguration config;
+    protected UpnpControlConfiguration config;
 
     protected final Object invokeActionLock = new Object();
 
@@ -106,7 +106,6 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     protected volatile @Nullable CompletableFuture<Boolean> isConnectionIdSet;
     protected volatile @Nullable CompletableFuture<Boolean> isAvTransportIdSet;
     protected volatile @Nullable CompletableFuture<Boolean> isRcsIdSet;
-    protected static final int UPNP_RESPONSE_TIMEOUT_MILLIS = 2500;
 
     protected static final int SUBSCRIPTION_DURATION_SECONDS = 3600;
     protected List<String> serviceSubscriptions = new ArrayList<>();
@@ -569,7 +568,7 @@ public abstract class UpnpHandler extends BaseThingHandler implements UpnpIOPart
     private boolean checkForConnectionId(@Nullable CompletableFuture<Boolean> future) {
         try {
             if (future != null) {
-                return future.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                return future.get(config.responsetimeout, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             return false;

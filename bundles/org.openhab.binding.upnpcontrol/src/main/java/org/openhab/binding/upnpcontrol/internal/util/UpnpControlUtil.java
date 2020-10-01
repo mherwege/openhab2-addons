@@ -35,7 +35,7 @@ import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfigu
 @NonNullByDefault
 public final class UpnpControlUtil implements UpnpControlBindingConfigurationListener {
 
-    volatile private static List<String> playlistList = new ArrayList<>();
+    private static volatile List<String> playlistList = new ArrayList<>();
     private static List<UpnpPlaylistsListener> playlistSubscriptions = new ArrayList<>();
 
     public static void updatePlaylistsList(@Nullable String path) {

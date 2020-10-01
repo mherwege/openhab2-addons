@@ -301,7 +301,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         try {
             if (settingURI != null) {
                 // wait for maximum 2.5s until the media URI is set before playing
-                uriSet = settingURI.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                uriSet = settingURI.get(config.responsetimeout, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             logger.debug("Timeout exception, media URI not yet set in renderer {}, trying to play anyway",
@@ -584,8 +584,8 @@ public class UpnpRendererHandler extends UpnpHandler {
                 Thing serverThing = handler.getThing();
                 Channel serverChannel = serverThing.getChannel(channelUID.getId());
                 if (serverChannel != null) {
-                    logger.debug("Update server {} channel {} state from renderer {}", serverThing.getLabel(),
-                            channelUID, thing.getLabel());
+                    logger.debug("Update server {} channel {} with state {} from renderer {}", serverThing.getLabel(),
+                            state, channelUID, thing.getLabel());
                     handler.updateServerState(serverChannel.getUID(), state);
                 }
             }
@@ -878,7 +878,7 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
-    private void updateFavoritesList() {
+    void updateFavoritesList() {
         synchronized (favoriteCommandOptionList) {
             favoriteCommandOptionList = UpnpControlUtil.favorites(bindingConfig.path).stream()
                     .map(p -> (new CommandOption(p, p))).collect(Collectors.toList());
@@ -1408,7 +1408,7 @@ public class UpnpRendererHandler extends UpnpHandler {
      * timeout, we will revert to playing state. This takes care of renderers that cannot pause playback.
      */
     private void checkPaused() {
-        paused = upnpScheduler.schedule(this::resetPaused, UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        paused = upnpScheduler.schedule(this::resetPaused, config.responsetimeout, TimeUnit.MILLISECONDS);
     }
 
     private void resetPaused() {
@@ -1425,7 +1425,7 @@ public class UpnpRendererHandler extends UpnpHandler {
 
     private void setExpectedTrackend() {
         expectedTrackend = Instant.now().toEpochMilli() + (trackDuration - trackPosition) * 1000
-                - UPNP_RESPONSE_TIMEOUT_MILLIS;
+                - config.responsetimeout;
     }
 
     /**

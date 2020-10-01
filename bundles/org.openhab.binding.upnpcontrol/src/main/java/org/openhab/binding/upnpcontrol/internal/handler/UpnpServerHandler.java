@@ -215,7 +215,7 @@ public class UpnpServerHandler extends UpnpHandler {
         try {
             if (browsing != null) {
                 // wait for maximum 2.5s until browsing is finished
-                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                browsed = browsing.get(config.responsetimeout, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             logger.debug("Exception, previous server query on {} interrupted or timed out, trying new browse anyway",
@@ -261,7 +261,7 @@ public class UpnpServerHandler extends UpnpHandler {
         try {
             if (browsing != null) {
                 // wait for maximum 2.5s until browsing is finished
-                browsed = browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                browsed = browsing.get(config.responsetimeout, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             logger.debug("Exception, previous server query on {} interrupted or timed out, trying new search anyway",
@@ -495,7 +495,7 @@ public class UpnpServerHandler extends UpnpHandler {
             try {
                 if (browsing != null) {
                     // wait for maximum 2.5s until browsing is finished
-                    browsing.get(UPNP_RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                    browsing.get(config.responsetimeout, TimeUnit.MILLISECONDS);
                 }
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 logger.debug(

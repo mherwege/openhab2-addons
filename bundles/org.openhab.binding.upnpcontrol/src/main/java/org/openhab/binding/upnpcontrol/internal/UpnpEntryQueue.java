@@ -345,7 +345,7 @@ public class UpnpEntryQueue {
      * @param path directory containing playlist to restore
      */
     public void restoreQueue(String name, @Nullable String path) {
-        restoreQueue(name, null);
+        restoreQueue(name, null, path);
     }
 
     /**

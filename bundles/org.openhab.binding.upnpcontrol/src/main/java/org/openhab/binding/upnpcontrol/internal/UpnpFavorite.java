@@ -35,7 +35,7 @@ import com.google.gson.JsonParseException;
 @NonNullByDefault
 public class UpnpFavorite {
 
-    private final Logger logger = LoggerFactory.getLogger(UpnpEntryQueue.class);
+    private final Logger logger = LoggerFactory.getLogger(UpnpFavorite.class);
 
     /**
      * Inner class used for streaming a favorite to disk as a json object.

@@ -45,22 +45,26 @@ It can be retrieved from the thing ID when using auto discovery.
 
 Both also have `refresh` configuration parameter. This parameter defines a polling interval for polling the state of the `upnprenderer` or `upnpserver`.
 The default polling interval is 60s.
-O turns off polling.
+0 turns off polling.
+
+An advanced configuration parameter `responsetimeout` permits tweaking how long the `upnprenderer` and `upnpserver` will wait for GENA events from the UPnP device.
+This timeout is checked when there is a dependency between an action invocation and an event with expected result.
+The default is 2500ms.
+It should not be changed in normal circumstances.
 
 Additionally, a `upnpserver` device has the following optional configuration parameters:
 
 * `filter`: when true, only list content that is playable on the renderer, default is `false`.
 
-* `sortcriteria`: Sort criteria for the titles in the selection list and when sending for playing to a renderer.
-The criteria are defined in UPnP sort criteria format, examples: `+dc:title`, `-dc:creator`, `+upnp:album`.
-Support for sort criteria will depend on the media server.
-The default is to sort ascending on title, `+dc:title`.
+* `sortcriteria`: sort criteria for the titles in the selection list and when sending for playing to a renderer.
 
-* `browsedown`: When browse or search results in exactly one container entry, iteratively browse down until the result contains multiple container entries or at least one media entry.
-The default is `true`.
+  The criteria are defined in UPnP sort criteria format, examples: `+dc:title`, `-dc:creator`, `+upnp:album`.
+  Support for sort criteria will depend on the media server.
+  The default is to sort ascending on title, `+dc:title`.
 
-* `searchfromroot`: When searching, always start from root instead of the current id.
-The default is `false`.
+* `browsedown`: when browse or search results in exactly one container entry, iteratively browse down until the result contains multiple container entries or at least one media entry, default is `true`.
+
+* `searchfromroot`: always start search from root instead of the current id, default is `false`.
 
 A `upnprenderer` has the following optional configuration parameter:
 
@@ -81,57 +85,63 @@ Thing upnpcontrol:upnprenderer:<rendererId> [udn="<udn of media renderer>", refr
 The `upnpserver` has the following channels (item type and access mode indicated in brackets):
 
 * `upnprenderer` (String, RW): The renderer to receive media content for playback.
-
-   The channel allows selecting from all discovered media renderers.
-   This list is dynamically adjusted as media renderers are being added/removed.
+  
+  The channel allows selecting from all discovered media renderers.
+  This list is dynamically adjusted as media renderers are being added/removed.
 
 * `currentid` (String, RW): Current ID of media container or entry ready for playback.
 
-   This channel can be used to skip to a specific container or entry in the content directory.
-   Setting this to 0 will reposition to the top of the content hierarchy.
+  This channel can be used to skip to a specific container or entry in the content directory.
+  Setting this to 0 will reposition to the top of the content hierarchy.
 
 * `browse` (String, W): Browse and serve media content.
 
-   The browsing will start at the top of the content directory tree and allows you to go down and up (represented by ..) in the tree.
-   The list of containers (directories) and media entries for selection in the content hierarchy is updated dynamically when selecting a container or entry.
-   All media in the selection list, playable on the currently selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.  
-   The `browsedown` configuration parameter influences the result in such a way that, for `browsedown = true`, if the result only contains exactly one container entry, the result will be the content of the container and not the container itself.
+  The browsing will start at the top of the content directory tree and allows you to go down and up (represented by ..) in the tree.
+  The list of containers (directories) and media entries for selection in the content hierarchy is updated dynamically when selecting a container or entry.
+  
+  All media in the selection list, playable on the currently selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
+  
+  The `browsedown` configuration parameter influences the result in such a way that, for `browsedown = true`, if the result only contains exactly one container entry, the result will be the content of the container and not the container itself.
 
 * `search` (String, W): Search for media content on the server.
 
-   Search criteria are defined in UPnP search criteria format.
-   Examples: `dc:title contains "song"`, `dc:creator contains "SpringSteen"`, `unp:class = "object.item.audioItem"`, `upnp:album contains "Born in"`.
-   The search by default starts at the value of the `currentid` channel and searches down from there unless the `searchfromroot` thing configuration parameter is set to `true`.
-   The result (media and containers) will be available in the `browse` command option list.
-   The `currentid` channel will be put to the id of the top container where the search started.
-   All media in the search result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
-   The `browsedown` configuration parameter influences the result in such a way that, for `browsedown = true`, if the result only contains exactly one container entry, the result will be the content of the container and not the container itself.
+  Search criteria are defined in UPnP search criteria format.
+  Examples: `dc:title contains "song"`, `dc:creator contains "SpringSteen"`, `unp:class = "object.item.audioItem"`, `upnp:album contains "Born in"`.
+  
+  The search, by default, starts at the value of the `currentid` and searches down from there unless the `searchfromroot` thing configuration parameter is set to `true`.
+  The result (media and containers) will be available in the `browse` command option list.
+  The `currentid` channel will be put to the id of the top container where the search started.
+  
+  All media in the search result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
+  
+  The `browsedown` configuration parameter influences the result in such a way that, for `browsedown = true`, if the result only contains exactly one container entry, the result   will be the content of the container and not the container itself.
 
 * `playlistselect` (String, W): Select a playlist from the available playlists currently saved on disk.
 
-   This will also update `playlist` with the selected value.
+  This will also update `playlist` with the selected value.
 
 * `playlist` (String, RW): Name of existing or new playlist.
 
 * `playlistaction` (String, W): action to perform with `playlist`.
 
-   Possible command options are:
+  Possible command options are:
    
-  * `RESTORE`: Restore the playlist from `playlist`.
+  * `RESTORE`: restore the playlist from `playlist`.
 
-   If the restored playlist contains content from the current server, this content will update the `browse` command option list.
-   Note that playlists can contain a mix of media entries and container references.
-   All media in the result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
+    If the restored playlist contains content from the current server, this content will update the `browse` command option list.
+    Note that playlists can contain a mix of media entries and container references.
+    
+    All media in the result list, playable on the current selected `upnprenderer` channel, are automatically queued to the renderer as next media for playback.
 
-  * `SAVE`: Save the current `browse` command option list into `playlist`.
+  * `SAVE`: save the current `browse` command option list into `playlist`.
 
-   If `playlist` already exists, it will be overwritten.
+    If `playlist` already exists, it will be overwritten.
 
-  * `APPEND`: Append the current `browse` command option list to `playlist`.
+  * `APPEND`: append the current `browse` command option list to `playlist`.
 
-   If `playlist` does not exist yet, a new playlist will be created.
+    If `playlist` does not exist yet, a new playlist will be created.
 
-  * `DELETE`: Delete `playlist` from disk and remove from `playlistselect` command option list.
+  * `DELETE`: delete `playlist` from disk and remove from `playlistselect` command option list.
 
 A number of convenience channels replicate the basic control channels from the `upnprenderer` thing for the currently selected renderer on the `upnprenderer` channel.
 These channels are `volume`, `mute` and `control`.
@@ -153,7 +163,7 @@ The `upnprenderer` has the following default channels:
 | `favoriteselect`   | String      | W           | play favorite from list of saved favorites         |
 | `favorite`         | String      | RW          | set name for existing of new favorite              |
 | `favoriteaction`   | String      | W           | `SAVE` or `DELETE` `favorite`                      |
-| `playlistselect`   | String      | W           | queue playlist from list of saved playlists        |
+| `playlistselect`   | String      | W           | play playlist from list of saved playlists        |
 | `title`            | String      | R           | media title                                        |
 | `album`            | String      | R           | media album                                        |
 | `albumart`         | Image       | R           | image for media album                              |
@@ -186,20 +196,26 @@ All configured media renderers are registered as an audio sink.
 
 ## Managing a Playback Queue
 
-There are 2 ways to serve content to a renderer for playback.
+There are multiple ways to serve content to a renderer for playback.
 
-* Directly provide a URI on the `URI` channel or `playSound` or `playStream` actions:
+* Directly provide a URI on the `URI` channel or through `playSound` or `playStream` actions:
 
-   Playing will start immediately, interrupting currently playing media.  
-   No metadata for the media is available, therefore will be provided in the media channels for metadata (e.g. `title`, `album`, ...).
+  Playing will start immediately, interrupting currently playing media.
+  No metadata for the media is available, therefore will be provided in the media channels for metadata (e.g. `title`, `album`, ...).
 
 * Content served from one or multiple `upnpserver` servers:
 
-   This is done on the `upnpserver` thing with the `upnprenderer` set the the renderer for playback.  
-   The media at any point in time in the `upnpserver browse` option list (result from browse, search or restoring a playlist), will be queued to the `upnprenderer` for playback after the currently playing media.  
-   Playback does not start automatically if not yet playing.  
-   The `upnprenderer` will use that queue until it is replaced by another queue from the same or another `upnpserver`.  
-   Note that querying the content hierarchy on the `upnpserver` will update the `upnpserver browse` option list each time, and therefore the queue on the `upnprenderer` will be updated each time as long as `upnprenderer` is selected on `upnpserver`.
+  This is done on the `upnpserver` thing with the `upnprenderer` set the the renderer for playback.
+  The media at any point in time in the `upnpserver browse` option list (result from browse, search or restoring a playlist), will be queued to the `upnprenderer` for playback.
+  Playback does not start automatically if not yet playing.
+  When already playing a queue, the first entry of the new queue will be playing as the next entry.
+  When playing an URI or media provided through an action, playback will immediately switch to the new queue.
+  
+  The `upnprenderer` will use that queue until it is replaced by another queue from the same or another `upnpserver`.
+  Note that querying the content hierarchy on the `upnpserver` will update the `upnpserver browse` option list each time, and therefore the queue on the `upnprenderer` will be updated each time as long as `upnprenderer` is selected on `upnpserver`.
+  
+* Selecting a favorite or playlist on the renderer.
+  Playback of the favorite or playlist will start immediately.
 
 When playing from a directly provided URI, at the end of the media, the renderer will try to move to the next entry in a queue previously provided by a server.
 Playing will stop when no such entry is available.
@@ -226,6 +242,7 @@ If the currently playing media has metadata, it will be saved with the favorite.
 
 A favorite only contains one media item.
 Selecting the favorite will only play that one item.
+The favorite will start playing immediately.
 Playing the server queue will resume after playing the favorite.
 
 ### Playlists
@@ -240,8 +257,8 @@ Only the media from the current server will be visible in the server when restor
 It is possible to append content to a playlist that already contains content from a different server.
 That way, it is possible to combine multiple sources for playback.
 
-When selecting a playlist on a renderer, the playlist will be queued immediately for playback after the currently playing entry.
-Playback will not start if not yet playing.
+When selecting a playlist on a renderer, the playlist will be queued for playback, replacing the current queue.
+Playback will start immediately.
 
 
 ## Using Search
@@ -254,7 +271,7 @@ Rather than searching for individual items, it is therefore often better to sear
 For example:
 
 * `upnp:class derivedfrom "object.item.audioItem.musicTrack" and dc:title contains "Fight For Your Right"` would search for all music tracks with "Fight For Your Right" in the title.
-This search is potentially slow.
+  This search is potentially slow.
 
 * `dc:title contains "Evening" and upnp:class = "object.container.playlistContainer"` would search for all playlists with "Evening" in the name.
 

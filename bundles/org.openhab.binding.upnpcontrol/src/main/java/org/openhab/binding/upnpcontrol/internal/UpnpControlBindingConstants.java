@@ -44,6 +44,7 @@ public class UpnpControlBindingConstants {
     // Thing config parameters
     public static final String UDN_PARAMETER = "udn";
     public static final String REFRESH_INTERVAL = "refresh";
+    public static final String RESPONSE_TIMEOUT = "responsetimeout";
     // Server thing only config parameters
     public static final String CONFIG_FILTER = "filter";
     public static final String SORT_CRITERIA = "sortcriteria";
