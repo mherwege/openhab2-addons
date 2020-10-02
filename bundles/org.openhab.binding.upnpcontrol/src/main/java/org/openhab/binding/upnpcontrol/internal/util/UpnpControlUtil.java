@@ -23,8 +23,8 @@ import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.upnpcontrol.internal.UpnpPlaylistsListener;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfigurationListener;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpPlaylistsListener;
 
 /**
  * Class with some static utility methods for the upnpcontrol binding.

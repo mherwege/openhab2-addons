@@ -49,13 +49,13 @@ import org.jupnp.model.meta.RemoteDevice;
 import org.openhab.binding.upnpcontrol.internal.UpnpControlHandlerFactory;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
-import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
-import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
-import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlServerConfiguration;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntry;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntryQueue;
 import org.openhab.binding.upnpcontrol.internal.util.UpnpControlUtil;
 import org.openhab.binding.upnpcontrol.internal.util.UpnpProtocolMatcher;
+import org.openhab.binding.upnpcontrol.internal.util.UpnpXMLParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

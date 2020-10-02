@@ -20,5 +20,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public class UpnpControlRendererConfiguration extends UpnpControlConfiguration {
+    public int notificationvolume = 60;
+    public int maxnotificationduration = 15;
     public int seekstep = 5;
 }

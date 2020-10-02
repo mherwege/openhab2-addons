@@ -48,12 +48,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
-import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
-import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
-import org.openhab.binding.upnpcontrol.internal.UpnpEntryRes;
-import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
+import org.openhab.binding.upnpcontrol.internal.audiosink.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlRendererConfiguration;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntry;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntryQueue;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntryRes;
+import org.openhab.binding.upnpcontrol.internal.util.UpnpXMLParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

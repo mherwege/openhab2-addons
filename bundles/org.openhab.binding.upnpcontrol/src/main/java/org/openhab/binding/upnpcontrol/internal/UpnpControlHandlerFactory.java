@@ -37,6 +37,9 @@ import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.model.meta.RemoteDevice;
 import org.jupnp.registry.Registry;
 import org.jupnp.registry.RegistryListener;
+import org.openhab.binding.upnpcontrol.internal.audiosink.UpnpAudioSink;
+import org.openhab.binding.upnpcontrol.internal.audiosink.UpnpAudioSinkReg;
+import org.openhab.binding.upnpcontrol.internal.audiosink.UpnpNotificationAudioSink;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.handler.UpnpHandler;
 import org.openhab.binding.upnpcontrol.internal.handler.UpnpRendererHandler;
@@ -184,12 +187,23 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
     private void removeRenderer(String key) {
         logger.debug("Removing media renderer handler for {} with UID {}", upnpRenderers.get(key).getThing().getLabel(),
                 upnpRenderers.get(key).getThing().getUID());
+
         if (audioSinkRegistrations.containsKey(key)) {
             logger.debug("Removing audio sink registration for {}", upnpRenderers.get(key).getThing().getLabel());
             ServiceRegistration<AudioSink> reg = audioSinkRegistrations.get(key);
             reg.unregister();
             audioSinkRegistrations.remove(key);
         }
+
+        String notificationKey = key + NOTIFICATION_AUDIOSINK_EXTENSION;
+        if (audioSinkRegistrations.containsKey(notificationKey)) {
+            logger.debug("Removing notification audio sink registration for {}",
+                    upnpRenderers.get(key).getThing().getLabel());
+            ServiceRegistration<AudioSink> reg = audioSinkRegistrations.get(notificationKey);
+            reg.unregister();
+            audioSinkRegistrations.remove(notificationKey);
+        }
+
         upnpServers.forEach((thingId, value) -> value.removeRendererOption(key));
         handlers.remove(upnpRenderers.remove(key).getUDN());
     }
@@ -204,6 +218,14 @@ public class UpnpControlHandlerFactory extends BaseThingHandlerFactory implement
             Thing thing = handler.getThing();
             audioSinkRegistrations.put(thing.getUID().toString(), reg);
             logger.debug("Audio sink added for media renderer {}", thing.getLabel());
+
+            UpnpNotificationAudioSink notificationAudioSink = new UpnpNotificationAudioSink(handler, audioHTTPServer,
+                    callbackUrl);
+            @SuppressWarnings("unchecked")
+            ServiceRegistration<AudioSink> notificationReg = (ServiceRegistration<AudioSink>) bundleContext
+                    .registerService(AudioSink.class.getName(), notificationAudioSink, new Hashtable<String, Object>());
+            audioSinkRegistrations.put(thing.getUID().toString() + NOTIFICATION_AUDIOSINK_EXTENSION, notificationReg);
+            logger.debug("Notification audio sink added for media renderer {}", thing.getLabel());
         }
     }
 

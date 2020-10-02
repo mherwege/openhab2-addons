@@ -61,19 +61,19 @@ import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.net.http.HttpUtil;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.jupnp.model.meta.RemoteDevice;
-import org.openhab.binding.upnpcontrol.internal.UpnpAudioSink;
-import org.openhab.binding.upnpcontrol.internal.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.UpnpChannelName;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicCommandDescriptionProvider;
 import org.openhab.binding.upnpcontrol.internal.UpnpDynamicStateDescriptionProvider;
-import org.openhab.binding.upnpcontrol.internal.UpnpEntry;
-import org.openhab.binding.upnpcontrol.internal.UpnpEntryQueue;
-import org.openhab.binding.upnpcontrol.internal.UpnpFavorite;
-import org.openhab.binding.upnpcontrol.internal.UpnpXMLParser;
+import org.openhab.binding.upnpcontrol.internal.audiosink.UpnpAudioSink;
+import org.openhab.binding.upnpcontrol.internal.audiosink.UpnpAudioSinkReg;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfiguration;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlRendererConfiguration;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntry;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntryQueue;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpFavorite;
 import org.openhab.binding.upnpcontrol.internal.services.UpnpRenderingControlConfiguration;
 import org.openhab.binding.upnpcontrol.internal.util.UpnpControlUtil;
+import org.openhab.binding.upnpcontrol.internal.util.UpnpXMLParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,6 +108,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private @NonNullByDefault({}) ChannelUID playlistSelectChannelUID;
 
     private volatile PercentType soundVolume = new PercentType();
+    private @Nullable volatile PercentType notificationVolume = new PercentType();
     private volatile List<String> sink = new ArrayList<>();
 
     private volatile String favoriteName = ""; // Currently selected favorite
@@ -133,20 +134,29 @@ public class UpnpRendererHandler extends UpnpHandler {
     private volatile @Nullable ScheduledFuture<?> paused; // Set when a pause command is given, to compensate for
                                                           // renderers that cannot pause playback
     private volatile @Nullable CompletableFuture<Boolean> isSettingURI; // Set to wait for setting URI before starting
-                                                                        // to play
+                                                                        // to play or seeking
+    private volatile @Nullable CompletableFuture<Boolean> isStopping; // Set when stopping to be able to wait for stop
+                                                                      // confirmation for subsequent actions that need
+                                                                      // the player to be stopped
     volatile boolean registeredQueue; // Set when registering a new queue. This allows to decide if we just
                                       // need to play URI, or serve the first entry in a queue when a play
                                       // command is given.
     volatile boolean playingQueue; // Identifies if we are playing a queue received from a server. If so, a new
-                                   // queue received will be played after the currently playing entry.
+                                   // queue received will be played after the currently playing entry
     private volatile boolean oneplayed; // Set to true when the one entry is being played, allows to check if stop is
                                         // needed when only playing one
+    private volatile boolean playingNotification; // Set when playing a notification
+    private volatile @Nullable ScheduledFuture<?> playingNotificationFuture; // Set when playing a notification, allows
+                                                                             // timing out notification
+    private volatile String notificationUri = ""; // Used to check if the received URI is from the notification
+    private final Object notificationLock = new Object();
 
     // Track position and duration fields
     private volatile int trackDuration = 0;
     private volatile int trackPosition = 0;
     private volatile long expectedTrackend = 0;
     private volatile @Nullable ScheduledFuture<?> trackPositionRefresh;
+    private volatile int posAtNotificationStart = 0;
 
     public UpnpRendererHandler(Thing thing, UpnpIOService upnpIOService, UpnpAudioSinkReg audioSinkReg,
             UpnpDynamicStateDescriptionProvider upnpStateDescriptionProvider,
@@ -166,6 +176,9 @@ public class UpnpRendererHandler extends UpnpHandler {
         config = getConfigAs(UpnpControlRendererConfiguration.class);
         if (config.seekstep < 1) {
             config.seekstep = 1;
+        }
+        if (PercentType.ZERO.equals(notificationVolume)) {
+            notificationVolume = new PercentType(config.notificationvolume);
         }
 
         logger.debug("Initializing handler for media renderer device {}", thing.getLabel());
@@ -287,6 +300,15 @@ public class UpnpRendererHandler extends UpnpHandler {
     public void stop() {
         playerStopped = true;
 
+        if (playing) {
+            CompletableFuture<Boolean> stopping = isStopping;
+            if (stopping != null) {
+                stopping.complete(false);
+            }
+            isStopping = new CompletableFuture<Boolean>(); // set this so we can check if stop confirmation has been
+                                                           // received
+        }
+
         Map<String, String> inputs = Collections.singletonMap("InstanceID", Integer.toString(avTransportId));
 
         invokeAction("AVTransport", "Stop", inputs);
@@ -352,12 +374,28 @@ public class UpnpRendererHandler extends UpnpHandler {
      * @param seekTarget relative position in current track, format HH:mm:ss
      */
     protected void seek(String seekTarget) {
-        Map<String, String> inputs = new HashMap<>();
-        inputs.put("InstanceID", Integer.toString(avTransportId));
-        inputs.put("Unit", "REL_TIME");
-        inputs.put("Target", seekTarget);
+        CompletableFuture<Boolean> settingURI = isSettingURI;
+        boolean uriSet = true;
+        try {
+            if (settingURI != null) {
+                // wait for maximum 2.5s until the media URI is set before seeking
+                uriSet = settingURI.get(config.responsetimeout, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.debug("Timeout exception, media URI not yet set in renderer {}, skipping seek", thing.getLabel());
+            return;
+        }
 
-        invokeAction("AVTransport", "Seek", inputs);
+        if (uriSet) {
+            Map<String, String> inputs = new HashMap<>();
+            inputs.put("InstanceID", Integer.toString(avTransportId));
+            inputs.put("Unit", "REL_TIME");
+            inputs.put("Target", seekTarget);
+
+            invokeAction("AVTransport", "Seek", inputs);
+        } else {
+            logger.debug("Cannot seek, cancelled setting URI in the renderer {}", thing.getLabel());
+        }
     }
 
     /**
@@ -372,7 +410,7 @@ public class UpnpRendererHandler extends UpnpHandler {
             uri = URLDecoder.decode(URI.trim(), StandardCharsets.UTF_8.name());
             // Some renderers don't send a URI Last Changed event when the same URI is requested, so don't wait for it
             // before starting to play
-            if (!uri.equals(nowPlayingUri)) {
+            if (!uri.equals(nowPlayingUri) && !playingNotification) {
                 CompletableFuture<Boolean> settingURI = isSettingURI;
                 if (settingURI != null) {
                     settingURI.complete(false);
@@ -864,6 +902,89 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
+    /**
+     * Set the volume for notifications.
+     *
+     * @param volume
+     */
+    public void setNotificationVolume(PercentType volume) {
+        notificationVolume = volume;
+    }
+
+    /**
+     * Play a notification. Previous state of the renderer will resume at the end of the notification, or after the
+     * maximum notification duration as defined in the renderer parameters.
+     *
+     * @param URI for notification sound
+     */
+    public void playNotification(String URI) {
+        synchronized (notificationLock) {
+            if (URI.isEmpty()) {
+                logger.debug("UPnP device {} received empty notification URI", thing.getLabel());
+                return;
+            }
+
+            notificationUri = URI;
+
+            logger.debug("UPnP device {} playing notification {}", thing.getLabel(), URI);
+
+            cancelTrackPositionRefresh();
+            getPositionInfo();
+
+            if (config.maxnotificationduration > 0) {
+                playingNotificationFuture = upnpScheduler.schedule(this::stop, config.maxnotificationduration,
+                        TimeUnit.SECONDS);
+            }
+            playingNotification = true;
+
+            setCurrentURI(URI, "");
+            setNextURI("", "");
+            PercentType volume = notificationVolume;
+            setVolume(volume == null ? new PercentType(config.notificationvolume) : volume);
+
+            CompletableFuture<Boolean> stopping = isStopping;
+            try {
+                if (stopping != null) {
+                    // wait for maximum 2.5s until the renderer stopped before playing
+                    stopping.get(config.responsetimeout, TimeUnit.MILLISECONDS);
+                }
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                logger.debug("Timeout exception, renderer {} didn't stop yet, trying to play anyway", thing.getLabel());
+            }
+            play();
+        }
+    }
+
+    private void cancelPlayingNotification() {
+        ScheduledFuture<?> future = playingNotificationFuture;
+        if (future != null) {
+            future.cancel(true);
+            playingNotificationFuture = null;
+        }
+
+        playingNotification = false;
+        notificationVolume = null;
+        notificationUri = "";
+    }
+
+    private void resumeAfterNotification() {
+        synchronized (notificationLock) {
+            logger.debug("UPnP device {} resume after playing notification", thing.getLabel());
+
+            setCurrentURI(nowPlayingUri, "");
+            setVolume("Master", soundVolume);
+
+            cancelPlayingNotification();
+
+            if (playing) {
+                int pos = posAtNotificationStart;
+                seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
+                play();
+            }
+            posAtNotificationStart = 0;
+        }
+    }
+
     private void playFavorite() {
         UpnpFavorite favorite = new UpnpFavorite(favoriteName, bindingConfig.path);
         String uri = favorite.getUri();
@@ -988,11 +1109,15 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (!((value == null) || (value.isEmpty()))) {
             UpnpRenderingControlConfiguration config = renderingControlConfiguration;
 
-            long volume = Integer.valueOf(value);
+            long volume = Long.valueOf(value);
             volume = volume * 100 / config.maxvolume;
 
             String upnpChannel = variable.replace("Volume", "volume").replace("Master", "");
             updateState(upnpChannel, new PercentType((int) volume));
+
+            if (!playingNotification && "volume".equals(upnpChannel)) {
+                soundVolume = new PercentType((int) volume);
+            }
         }
     }
 
@@ -1058,7 +1183,20 @@ public class UpnpRendererHandler extends UpnpHandler {
                 playerStopped, playing, registeredQueue, playingQueue, oneplayed);
 
         transportState = (value == null) ? "" : value;
+
+        if (playingNotification) {
+            if ("STOPPED".equals(value)) {
+                resumeAfterNotification();
+            }
+            return;
+        }
+
         if ("STOPPED".equals(value)) {
+            CompletableFuture<Boolean> stopping = isStopping;
+            if (stopping != null) {
+                stopping.complete(true); // We have received stop confirmation
+            }
+
             cancelCheckPaused();
             updateState(CONTROL, PlayPauseType.PAUSE);
             cancelTrackPositionRefresh();
@@ -1123,6 +1261,11 @@ public class UpnpRendererHandler extends UpnpHandler {
             // If not valid current URI, we assume there is none
         }
 
+        if (playingNotification && uri.equals(notificationUri)) {
+            // No need to update anything more if this is for playing a notification
+            return;
+        }
+
         nowPlayingUri = uri;
         updateState(URI, StringType.valueOf(uri));
 
@@ -1160,6 +1303,11 @@ public class UpnpRendererHandler extends UpnpHandler {
     }
 
     private void onValueReceivedCurrentMetaData(@Nullable String value) {
+        if (playingNotification) {
+            // Don't update metadata when playing notification
+            return;
+        }
+
         if (!((value == null) || (value.isEmpty()))) {
             List<UpnpEntry> list = UpnpXMLParser.getEntriesFromXML(value);
             if (!list.isEmpty()) {
@@ -1206,6 +1354,11 @@ public class UpnpRendererHandler extends UpnpHandler {
             int relPosition = (trackDuration != 0) ? trackPosition * 100 / trackDuration : 0;
             updateState(REL_TRACK_POSITION, new PercentType(relPosition));
         }
+
+        if (playingNotification) {
+            posAtNotificationStart = trackPosition;
+        }
+
         setExpectedTrackend();
     }
 
@@ -1432,6 +1585,10 @@ public class UpnpRendererHandler extends UpnpHandler {
      * Update the current track position every second if the channel is linked.
      */
     private void scheduleTrackPositionRefresh() {
+        if (playingNotification) {
+            return;
+        }
+
         cancelTrackPositionRefresh();
         if (!(isLinked(TRACK_POSITION) || isLinked(REL_TRACK_POSITION))) {
             // only get it once, so we can use the track end to correctly identify STOP pressed directly on renderer

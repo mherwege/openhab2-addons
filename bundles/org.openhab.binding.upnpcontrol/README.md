@@ -66,9 +66,13 @@ Additionally, a `upnpserver` device has the following optional configuration par
 
 * `searchfromroot`: always start search from root instead of the current id, default is `false`.
 
-A `upnprenderer` has the following optional configuration parameter:
+A `upnprenderer` has the following optional configuration parameters:
 
 * `seekstep`: step in seconds when sending fast forward or rewind command on the player control, default 5s.
+
+* `notificationvolume`: volume for notifications when no volume is set in `playSound` command, default 60.
+
+* `maxnotificationduration`: maximum duration for notifications, default 15s.
 
 The full syntax for manual configuration is:
 
@@ -190,8 +194,18 @@ Examples of these are:
 
 ## Audio Support
 
-All configured media renderers are registered as an audio sink.
+Two audio sinks are registered for each media renderer.
 `playSound` and `playStream` commands can be used in rules to play back audio fragments or audio streams to a renderer.
+
+The first audio sink has the renderer id as a name.
+It is used for normal playback of a sound or stream.
+
+The second audio sink has `-notify` appended to the renderer id for its name, and has a special behavior.
+This audio sink is used to play notifications.
+When setting the volume parameter in the `playSound` command, the volume of the renderer will only change for the duration of playing the notification.
+The `maxnotificationduration` configuration parameter of the renderer will limit the notification duration the value of the parameter in seconds.
+Normal playing will resume after the notification has played or when the maximum notification duration has been reached, whichever happens first.
+Longer sounds or streams will be cut off.
 
 
 ## Managing a Playback Queue
@@ -392,4 +406,6 @@ Audio sink usage examples in rules:
 ```
 playSound(“doorbell.mp3”)
 playStream("upnpcontrol:upnprenderer:mymediarenderer", "http://icecast.vrtcdn.be/stubru_tijdloze-high.mp3”)
+playSound("upnpcontrol:upnprenderer:mymediarenderer-notify", "doorbell.mp3", new PercentType(80));
+
 ```

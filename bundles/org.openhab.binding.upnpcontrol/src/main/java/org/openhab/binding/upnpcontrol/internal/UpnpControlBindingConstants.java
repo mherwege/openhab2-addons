@@ -51,6 +51,8 @@ public class UpnpControlBindingConstants {
     public static final String BROWSE_DOWN = "browsedown";
     public static final String SEARCH_FROM_ROOT = "searchfromroot";
     // Renderer thing only config parameters
+    public static final String NOTIFICATION_VOLUME = "notificationvolume";
+    public static final String MAX_NOTIFICATION_DURATION = "maxnotificationduration";
     public static final String SEEK_STEP = "seekstep";
 
     // List of all Channel ids
@@ -104,4 +106,7 @@ public class UpnpControlBindingConstants {
             + File.separator;
     public static final String PLAYLIST_FILE_EXTENSION = ".lst";
     public static final String FAVORITE_FILE_EXTENSION = ".fav";
+
+    // Notification audio sink name extension
+    public static final String NOTIFICATION_AUDIOSINK_EXTENSION = "-notify";
 }

@@ -10,7 +10,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.upnpcontrol.internal;
+package org.openhab.binding.upnpcontrol.internal.audiosink;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -44,9 +44,9 @@ public class UpnpAudioSink implements AudioSink {
 
     private static final Set<Class<? extends AudioStream>> SUPPORTED_STREAMS = Stream
             .of(AudioStream.class, FixedLengthAudioStream.class).collect(Collectors.toSet());
-    private UpnpRendererHandler handler;
-    private AudioHTTPServer audioHTTPServer;
-    private String callbackUrl;
+    protected UpnpRendererHandler handler;
+    protected AudioHTTPServer audioHTTPServer;
+    protected String callbackUrl;
 
     public UpnpAudioSink(UpnpRendererHandler handler, AudioHTTPServer audioHTTPServer, String callbackUrl) {
         this.handler = handler;
@@ -110,11 +110,11 @@ public class UpnpAudioSink implements AudioSink {
         }
     }
 
-    private void stopMedia() {
+    protected void stopMedia() {
         handler.stop();
     }
 
-    private void playMedia(String url) {
+    protected void playMedia(String url) {
         String newUrl = url;
         if (!url.startsWith("x-") && !url.startsWith("http")) {
             newUrl = "x-file-cifs:" + url;

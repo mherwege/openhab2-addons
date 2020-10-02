@@ -49,13 +49,23 @@
 				<description>Specifies the refresh interval in seconds</description>
 				<default>60</default>
 			</parameter>
+			<parameter name="notificationvolume" type="integer" min="0" max="100" step="1" unit="%">
+				<label>Notification Sound Volume</label>
+				<description>Specifies the default volume in percent for notification sounds</description>
+				<default>60</default>
+			</parameter>
+			<parameter name="maxnotificationduration" type="integer" unit="s">
+				<label>Maximum Notification Duration</label>
+				<description>Specifies the maximum duration for notifications, longer notification sounds will be interrupted</description>
+				<default>15</default>
+			</parameter>
 			<parameter name="seekstep" type="integer" min="1">
-				<label>fast forward/rewind step</label>
+				<label>Fast Forward/Rewind Step</label>
 				<description>Step in seconds for fast forward rewind</description>
 				<default>5</default>
 			</parameter>
 			<parameter name="responsetimeout" type="integer" unit="ms">
-				<label>UPnP response timeout</label>
+				<label>UPnP Response Timeout</label>
 				<description>Specifies the timeout in milliseconds when waiting for responses on UPnP actions</description>
 				<default>2500</default>
 				<advanced>true</advanced>
@@ -74,7 +84,7 @@
 
 			<channel id="playlistselect" typeId="playlistselect"/>
 			<channel id="playlist" typeId="playlist"/>
-			<channel id="playlistaction" typeId="playlsitaction"/>
+			<channel id="playlistaction" typeId="playlistaction"/>
 
 			<channel id="volume" typeId="system.volume"/>
 			<channel id="mute" typeId="system.mute"/>
@@ -118,7 +128,7 @@
 				<default>false</default>
 			</parameter>
 			<parameter name="responsetimeout" type="integer" unit="ms">
-				<label>UPnP response timeout</label>
+				<label>UPnP Response Timeout</label>
 				<description>Specifies the timeout in milliseconds when waiting for responses on UPnP actions</description>
 				<default>2500</default>
 				<advanced>true</advanced>

@@ -10,7 +10,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.upnpcontrol.internal;
+package org.openhab.binding.upnpcontrol.internal.util;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -28,6 +28,8 @@ import javax.xml.parsers.SAXParserFactory;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntry;
+import org.openhab.binding.upnpcontrol.internal.queue.UpnpEntryRes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.Attributes;
