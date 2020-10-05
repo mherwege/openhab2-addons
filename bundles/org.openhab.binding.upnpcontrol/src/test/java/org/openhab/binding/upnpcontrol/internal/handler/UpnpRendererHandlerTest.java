@@ -32,8 +32,11 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.NextPreviousType;
 import org.eclipse.smarthome.core.library.types.OnOffType;
+import org.eclipse.smarthome.core.library.types.PercentType;
 import org.eclipse.smarthome.core.library.types.PlayPauseType;
+import org.eclipse.smarthome.core.library.types.QuantityType;
 import org.eclipse.smarthome.core.library.types.StringType;
+import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.ThingStatus;
@@ -236,7 +239,7 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
                 .withPublisher("myself 1").withAlbumArtUri("").withTrackNumber(2);
         entries.add(entry);
         resList = new ArrayList<>();
-        res = new UpnpEntryRes("http-get:*:audio/mpeg:*", 1156598L, "4", "http://MediaServerContent_0/1/M2/");
+        res = new UpnpEntryRes("http-get:*:audio/mpeg:*", 1156598L, "40", "http://MediaServerContent_0/1/M2/");
         res.setRes("http://MediaServerContent_0/1/M2/Test_2.mp3");
         resList.add(res);
         entry = new UpnpEntry("M2", "M2", "C12", "object.item.audioItem").withTitle("Music_02").withResList(resList)
@@ -347,9 +350,9 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         handler.handleCommand(controlChannelUID, PlayPauseType.PAUSE);
 
         // Wait long enough for status to turn back to PLAYING.
-        // In the test, we have put this timeout to 0.
+        // All timeouts in test are set to 1s.
         try {
-            TimeUnit.MILLISECONDS.sleep(handler.config.responsetimeout);
+            TimeUnit.SECONDS.sleep(1);
         } catch (InterruptedException ignore) {
         }
 
@@ -635,6 +638,77 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
     }
 
     @Test
+    public void testPlayNotification() {
+        logger.info("testPlayNotification");
+
+        // Register a media queue
+        expectLastChangeOnSetAVTransportURI(true, 0);
+        handler.registerQueue(requireNonNull(upnpEntryQueue));
+
+        // Set volume
+        expectLastChangeOnSetVolume(true, 50);
+        handler.setVolume(new PercentType(50));
+
+        checkInternalState(0, 1, true, false, true, false);
+        checkSetURI(0, 1, true);
+        checkMetadataChannels(0, false);
+
+        // Play notification, at standard 10% volume above current volume level
+        expectLastChangeOnSetAVTransportURI(true, false, 2);
+        expectLastChangeOnGetPositionInfo(true, "00:00:00");
+        handler.playNotification(upnpEntryQueue.get(2).getRes());
+
+        checkInternalState(0, 1, true, false, true, false);
+        checkSetURI(2, null, false);
+        checkMetadataChannels(0, false);
+        verify(handler).setVolume(new PercentType(55));
+
+        // At the end of the notification, we will get GENA LastChange STOP event
+        // Force this STOP event for test
+        expectLastChangeOnSetAVTransportURI(true, false, 0);
+        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "STOPPED" + CLOSE + LAST_CHANGE_FOOTER;
+        handler.onValueReceived("LastChange", lastChange, "AVTransport");
+
+        checkInternalState(0, 1, true, false, true, false);
+        checkMetadataChannels(0, false);
+        verify(handler, times(2)).setVolume(new PercentType(50));
+
+        // Play media and move to position
+        handler.handleCommand(controlChannelUID, PlayPauseType.PLAY);
+
+        checkInternalState(0, 1, false, true, false, true); //
+        checkSetURI(0, 1, true);
+        checkMetadataChannels(0, false);
+
+        // Play notification again, while simulating the current playing media is at 10s position
+        // Play at volume level provided by audiSink action
+        expectLastChangeOnSetAVTransportURI(true, false, 2);
+        expectLastChangeOnGetPositionInfo(true, "00:00:10");
+        handler.setNotificationVolume(new PercentType(70));
+        handler.playNotification(upnpEntryQueue.get(2).getRes());
+
+        checkInternalState(0, 1, false, true, false, true);
+        checkSetURI(2, null, false);
+        checkMetadataChannels(0, false);
+        verify(handler).setVolume(new PercentType(70));
+
+        // Wait long enough for max notification duration to be reached.
+        // In the test, we have enforced 500ms delay through schedule mock.
+        expectLastChangeOnSetAVTransportURI(true, false, 0);
+        try {
+            TimeUnit.SECONDS.sleep(1);
+            logger.info("Test playing {}, stopped {}", handler.playing, handler.playerStopped);
+        } catch (InterruptedException ignore) {
+        }
+
+        checkInternalState(0, 1, false, true, false, true);
+        checkSetURI(0, null, false);
+        checkMetadataChannels(0, false);
+        verify(handler, times(3)).setVolume(new PercentType(50));
+        verify(callback, times(2)).stateUpdated(trackPositionChannelUID, new QuantityType<>(10, SmartHomeUnits.SECOND));
+    }
+
+    @Test
     public void testFavorite() {
         logger.info("testFavorite");
 
@@ -695,33 +769,57 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
     }
 
     private void expectLastChangeOnStop(boolean respond) {
-        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "STOPPED" + CLOSE + LAST_CHANGE_FOOTER;
+        String value = LAST_CHANGE_HEADER + TRANSPORT_STATE + "STOPPED" + CLOSE + LAST_CHANGE_FOOTER;
         doAnswer(invocation -> {
             if (respond) {
-                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+                handler.onValueReceived("LastChange", value, "AVTransport");
             }
             return Collections.emptyMap();
         }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("Stop"), anyMap());
     }
 
     private void expectLastChangeOnPlay(boolean respond) {
-        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "PLAYING" + CLOSE + LAST_CHANGE_FOOTER;
+        String value = LAST_CHANGE_HEADER + TRANSPORT_STATE + "PLAYING" + CLOSE + LAST_CHANGE_FOOTER;
         doAnswer(invocation -> {
             if (respond) {
-                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+                handler.onValueReceived("LastChange", value, "AVTransport");
             }
             return Collections.emptyMap();
         }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("Play"), anyMap());
     }
 
     private void expectLastChangeOnPause(boolean respond) {
-        String lastChange = LAST_CHANGE_HEADER + TRANSPORT_STATE + "PAUSED_PLAYBACK" + CLOSE + LAST_CHANGE_FOOTER;
+        String value = LAST_CHANGE_HEADER + TRANSPORT_STATE + "PAUSED_PLAYBACK" + CLOSE + LAST_CHANGE_FOOTER;
         doAnswer(invocation -> {
             if (respond) {
-                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+                handler.onValueReceived("LastChange", value, "AVTransport");
             }
             return Collections.emptyMap();
         }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("Pause"), anyMap());
+    }
+
+    private void expectLastChangeOnSetVolume(boolean respond, long volume) {
+        Map<String, String> inputs = new HashMap<>();
+        inputs.put("InstanceID", "0");
+        inputs.put("Channel", UPNP_MASTER);
+        inputs.put("DesiredVolume", String.valueOf(volume));
+        doAnswer(invocation -> {
+            if (respond) {
+                handler.onValueReceived(UPNP_MASTER + "Volume", String.valueOf(volume), "RenderingControl");
+            }
+            return Collections.emptyMap();
+        }).when(upnpIOService).invokeAction(eq(handler), eq("RenderingControl"), eq("SetVolume"), eq(inputs));
+    }
+
+    private void expectLastChangeOnGetPositionInfo(boolean respond, String seekTarget) {
+        Map<String, String> inputs = new HashMap<>();
+        inputs.put("InstanceID", "0");
+        doAnswer(invocation -> {
+            if (respond) {
+                handler.onValueReceived("RelTime", seekTarget, "AVTransport");
+            }
+            return Collections.emptyMap();
+        }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("GetPositionInfo"), eq(inputs));
     }
 
     private void expectLastChangeOnSetAVTransportURI(boolean respond, int mediaId) {
@@ -735,12 +833,12 @@ public class UpnpRendererHandlerTest extends UpnpHandlerTest {
         inputs.put("InstanceID", "0");
         inputs.put("CurrentURI", uri);
         inputs.put("CurrentURIMetaData", withMetadata ? metadata : "");
-        String lastChange = LAST_CHANGE_HEADER + AV_TRANSPORT_URI + uri + CLOSE + AV_TRANSPORT_URI_METADATA + metadata
+        String value = LAST_CHANGE_HEADER + AV_TRANSPORT_URI + uri + CLOSE + AV_TRANSPORT_URI_METADATA + metadata
                 + CLOSE + CURRENT_TRACK_URI + uri + CLOSE + CURRENT_TRACK_METADATA + metadata + CLOSE
                 + LAST_CHANGE_FOOTER;
         doAnswer(invocation -> {
             if (respond) {
-                handler.onValueReceived("LastChange", lastChange, "AVTransport");
+                handler.onValueReceived("LastChange", value, "AVTransport");
             }
             return Collections.emptyMap();
         }).when(upnpIOService).invokeAction(eq(handler), eq("AVTransport"), eq("SetAVTransportURI"), eq(inputs));

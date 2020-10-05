@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -50,6 +51,8 @@ import org.slf4j.LoggerFactory;
 public class UpnpHandlerTest {
 
     private final Logger logger = LoggerFactory.getLogger(UpnpHandlerTest.class);
+
+    private static final ScheduledExecutorService testScheduler = Executors.newScheduledThreadPool(1);
 
     protected @Nullable UpnpHandler handler;
 
@@ -118,7 +121,7 @@ public class UpnpHandlerTest {
         handler.setCallback(callback);
         handler.upnpScheduler = requireNonNull(scheduler);
 
-        // No timeouts for responses, as we don't actually communicate with an UPnP device
+        // No timeouts for responses, as we don't actually communicate with a UPnP device
         handler.config.responsetimeout = 0;
 
         doReturn("12345").when(handler).getUDN();
@@ -127,6 +130,9 @@ public class UpnpHandlerTest {
     /**
      * Mock the {@link ScheduledExecutorService}, so all testing is done in the current thread. We do not test
      * request/response with a real media server, so do not need the executor to avoid long running processes.
+     * As an exception, we will schedule one off futures with 500ms delay, as this is related to internal
+     * synchronization
+     * logic.
      *
      * @param executor
      */
@@ -139,6 +145,9 @@ public class UpnpHandlerTest {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executor).scheduleWithFixedDelay(any(Runnable.class), eq(0L), anyLong(), any(TimeUnit.class));
+        doAnswer(invocation -> {
+            return testScheduler.schedule((Runnable) invocation.getArguments()[0], 500, TimeUnit.MILLISECONDS);
+        }).when(executor).schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
     }
 
     public void tearDown() {
