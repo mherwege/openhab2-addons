@@ -51,7 +51,7 @@ public class UpnpControlBindingConstants {
     public static final String BROWSE_DOWN = "browsedown";
     public static final String SEARCH_FROM_ROOT = "searchfromroot";
     // Renderer thing only config parameters
-    public static final String NOTIFICATION_VOLUME = "notificationvolume";
+    public static final String NOTIFICATION_VOLUME_ADJUSTMENT = "notificationvolumeadjustment";
     public static final String MAX_NOTIFICATION_DURATION = "maxnotificationduration";
     public static final String SEEK_STEP = "seekstep";
 

@@ -108,7 +108,7 @@ public class UpnpRendererHandler extends UpnpHandler {
     private @NonNullByDefault({}) ChannelUID playlistSelectChannelUID;
 
     private volatile PercentType soundVolume = new PercentType();
-    private @Nullable volatile PercentType notificationVolume = new PercentType();
+    private @Nullable volatile PercentType notificationVolume;
     private volatile List<String> sink = new ArrayList<>();
 
     private volatile String favoriteName = ""; // Currently selected favorite
@@ -145,7 +145,7 @@ public class UpnpRendererHandler extends UpnpHandler {
                                    // queue received will be played after the currently playing entry
     private volatile boolean oneplayed; // Set to true when the one entry is being played, allows to check if stop is
                                         // needed when only playing one
-    private volatile boolean playingNotification; // Set when playing a notification
+    volatile boolean playingNotification; // Set when playing a notification
     private volatile @Nullable ScheduledFuture<?> playingNotificationFuture; // Set when playing a notification, allows
                                                                              // timing out notification
     private volatile String notificationUri = ""; // Used to check if the received URI is from the notification
@@ -177,10 +177,6 @@ public class UpnpRendererHandler extends UpnpHandler {
         if (config.seekstep < 1) {
             config.seekstep = 1;
         }
-        if (PercentType.ZERO.equals(notificationVolume)) {
-            notificationVolume = new PercentType(config.notificationvolume);
-        }
-
         logger.debug("Initializing handler for media renderer device {}", thing.getLabel());
 
         Channel favoriteSelectChannel = thing.getChannel(FAVORITE_SELECT);
@@ -931,6 +927,8 @@ public class UpnpRendererHandler extends UpnpHandler {
             cancelTrackPositionRefresh();
             getPositionInfo();
 
+            cancelPlayingNotificationFuture();
+
             if (config.maxnotificationduration > 0) {
                 playingNotificationFuture = upnpScheduler.schedule(this::stop, config.maxnotificationduration,
                         TimeUnit.SECONDS);
@@ -940,7 +938,10 @@ public class UpnpRendererHandler extends UpnpHandler {
             setCurrentURI(URI, "");
             setNextURI("", "");
             PercentType volume = notificationVolume;
-            setVolume(volume == null ? new PercentType(config.notificationvolume) : volume);
+            setVolume(volume == null
+                    ? new PercentType(Math.min(100,
+                            Math.max(0, (100 + config.notificationvolumeadjustment) * soundVolume.intValue() / 100)))
+                    : volume);
 
             CompletableFuture<Boolean> stopping = isStopping;
             try {
@@ -955,16 +956,12 @@ public class UpnpRendererHandler extends UpnpHandler {
         }
     }
 
-    private void cancelPlayingNotification() {
+    private void cancelPlayingNotificationFuture() {
         ScheduledFuture<?> future = playingNotificationFuture;
         if (future != null) {
             future.cancel(true);
             playingNotificationFuture = null;
         }
-
-        playingNotification = false;
-        notificationVolume = null;
-        notificationUri = "";
     }
 
     private void resumeAfterNotification() {
@@ -972,14 +969,24 @@ public class UpnpRendererHandler extends UpnpHandler {
             logger.debug("UPnP device {} resume after playing notification", thing.getLabel());
 
             setCurrentURI(nowPlayingUri, "");
-            setVolume("Master", soundVolume);
+            setVolume(soundVolume);
 
-            cancelPlayingNotification();
+            cancelPlayingNotificationFuture();
+
+            playingNotification = false;
+            notificationVolume = null;
+            notificationUri = "";
 
             if (playing) {
+                logger.info("Resume playing");
+                logger.info("Playing notification {}", playingNotification);
                 int pos = posAtNotificationStart;
                 seek(String.format("%02d:%02d:%02d", pos / 3600, (pos % 3600) / 60, pos % 60));
+                logger.info("Start play");
+                logger.info("Playing notification {}", playingNotification);
                 play();
+                logger.info("Playing {}, stopped {}", playing, playerStopped);
+                logger.info("Playing notification {}", playingNotification);
             }
             posAtNotificationStart = 0;
         }
@@ -1184,17 +1191,16 @@ public class UpnpRendererHandler extends UpnpHandler {
 
         transportState = (value == null) ? "" : value;
 
-        if (playingNotification) {
-            if ("STOPPED".equals(value)) {
-                resumeAfterNotification();
-            }
-            return;
-        }
-
         if ("STOPPED".equals(value)) {
             CompletableFuture<Boolean> stopping = isStopping;
             if (stopping != null) {
                 stopping.complete(true); // We have received stop confirmation
+                isStopping = null;
+            }
+
+            if (playingNotification) {
+                resumeAfterNotification();
+                return;
             }
 
             cancelCheckPaused();
@@ -1222,6 +1228,10 @@ public class UpnpRendererHandler extends UpnpHandler {
                 }
             }
         } else if ("PLAYING".equals(value)) {
+            if (playingNotification) {
+                return;
+            }
+
             playerStopped = false;
             playing = true;
             registeredQueue = false; // reset queue registration flag as we are playing something

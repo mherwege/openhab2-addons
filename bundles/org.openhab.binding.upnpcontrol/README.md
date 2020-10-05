@@ -70,7 +70,7 @@ A `upnprenderer` has the following optional configuration parameters:
 
 * `seekstep`: step in seconds when sending fast forward or rewind command on the player control, default 5s.
 
-* `notificationvolume`: volume for notifications when no volume is set in `playSound` command, default 60.
+* `notificationvolumeadjustment`: volume adjustment from current volume in percent (range -100 to +100) for notifications when no volume is set in `playSound` command, default 10.
 
 * `maxnotificationduration`: maximum duration for notifications, default 15s.
 
@@ -229,6 +229,7 @@ There are multiple ways to serve content to a renderer for playback.
   Note that querying the content hierarchy on the `upnpserver` will update the `upnpserver browse` option list each time, and therefore the queue on the `upnprenderer` will be updated each time as long as `upnprenderer` is selected on `upnpserver`.
   
 * Selecting a favorite or playlist on the renderer.
+
   Playback of the favorite or playlist will start immediately.
 
 When playing from a directly provided URI, at the end of the media, the renderer will try to move to the next entry in a queue previously provided by a server.

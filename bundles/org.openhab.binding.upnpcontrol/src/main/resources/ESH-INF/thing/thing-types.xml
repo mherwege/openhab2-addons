@@ -49,10 +49,10 @@
 				<description>Specifies the refresh interval in seconds</description>
 				<default>60</default>
 			</parameter>
-			<parameter name="notificationvolume" type="integer" min="0" max="100" step="1" unit="%">
-				<label>Notification Sound Volume</label>
-				<description>Specifies the default volume in percent for notification sounds</description>
-				<default>60</default>
+			<parameter name="notificationvolumeadjustment" type="integer" min="-100" max="100" step="1" unit="%">
+				<label>Notification Sound Volume Adjustment</label>
+				<description>Specifies the percentage adjustment to the current sound volume when playing notifications</description>
+				<default>10</default>
 			</parameter>
 			<parameter name="maxnotificationduration" type="integer" unit="s">
 				<label>Maximum Notification Duration</label>
