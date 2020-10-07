@@ -215,16 +215,6 @@ public class UpnpRendererHandler extends UpnpHandler {
     protected void initJob() {
         synchronized (jobLock) {
             if (!ThingStatus.ONLINE.equals(thing.getStatus())) {
-                if (!upnpIOService.isRegistered(this)) {
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                            "UPnP device with UDN " + getUDN() + " not yet registered");
-                    return;
-                }
-
-                if (!upnpSubscribed) {
-                    addSubscriptions();
-                }
-
                 getProtocolInfo();
 
                 getCurrentConnectionInfo();
