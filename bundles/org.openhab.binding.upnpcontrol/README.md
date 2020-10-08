@@ -267,6 +267,8 @@ Playlists provide a way to define lists of server content for playback.
 A new playlist can be created on a server thing from the selection in the `upnpserver browse` selection list.
 When restoring a playlist on the server, the media in the playlist from the `upnpserver` thing used for restoring, will be put in the `upnpserver browse` selection list.
 
+The current selection of media playable on the currently selected renderer will automatically be stored as a playlist with name `current`.
+
 A playlist can contain media from different servers.
 Only the media from the current server will be visible in the server when restoring.
 It is possible to append content to a playlist that already contains content from a different server.

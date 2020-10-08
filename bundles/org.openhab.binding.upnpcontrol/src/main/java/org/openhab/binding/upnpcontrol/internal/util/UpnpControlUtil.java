@@ -25,6 +25,8 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.upnpcontrol.internal.config.UpnpControlBindingConfigurationListener;
 import org.openhab.binding.upnpcontrol.internal.queue.UpnpPlaylistsListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class with some static utility methods for the upnpcontrol binding.
@@ -34,6 +36,8 @@ import org.openhab.binding.upnpcontrol.internal.queue.UpnpPlaylistsListener;
  */
 @NonNullByDefault
 public final class UpnpControlUtil implements UpnpControlBindingConfigurationListener {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(UpnpControlUtil.class);
 
     private static volatile List<String> playlistList = new ArrayList<>();
     private static List<UpnpPlaylistsListener> playlistSubscriptions = new ArrayList<>();
@@ -97,11 +101,18 @@ public final class UpnpControlUtil implements UpnpControlBindingConfigurationLis
 
     private static List<String> list(@Nullable String path, String extension) {
         if (path == null) {
+            LOGGER.debug("No path set for {} files", extension);
             return Collections.emptyList();
         }
 
         File directory = new File(path);
         File[] files = directory.listFiles((dir, name) -> name.toLowerCase().endsWith(extension));
+
+        if (files == null) {
+            LOGGER.debug("Error reading {} files in {}", extension, path);
+            return Collections.emptyList();
+        }
+
         List<String> result = (Arrays.asList(files)).stream().map(p -> p.getName().replace(extension, ""))
                 .collect(Collectors.toList());
         return result;
